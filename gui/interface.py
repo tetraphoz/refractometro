@@ -22,10 +22,7 @@ class ControlInterface:
 
 
 
-    # ------------------------------------------------------------------
     # Helpers
-    # ------------------------------------------------------------------
-
     def log(
         self,
         message: str,
@@ -79,13 +76,8 @@ class ControlInterface:
 
 
 
-    # ------------------------------------------------------------------
     # Callbacks ESP32
-    # ------------------------------------------------------------------
-
-    def conectar_esp32(
-        self,
-    ):
+    def conectar_esp32(self,):
 
         try:
 
@@ -106,9 +98,7 @@ class ControlInterface:
             )
 
 
-            self.log(
-                "[ESP32] Conectado"
-            )
+            self.log("[ESP32] Conectado")
 
 
         except Exception as exc:
@@ -119,12 +109,9 @@ class ControlInterface:
 
 
 
-    def desconectar_esp32(
-        self,
-    ):
+    def desconectar_esp32(self,):
 
         self.controller.disconnect_sensor()
-
 
         dpg.set_value(
             "estado_esp32",
@@ -132,16 +119,10 @@ class ControlInterface:
         )
 
 
-    # ------------------------------------------------------------------
     # Callbacks motor
-    # ------------------------------------------------------------------
-
-    def conectar_motor(
-        self,
-    ):
+    def conectar_motor(self,):
 
         try:
-
             self.controller.connect_motor(
                 dpg.get_value(
                     "puerto_motor"
@@ -155,16 +136,11 @@ class ControlInterface:
             )
 
 
-            self.log(
-                "[MOTOR] Conectado"
-            )
+            self.log("[MOTOR] Conectado")
 
 
         except Exception as exc:
-
-            self.log(
-                f"[MOTOR ERROR] {exc}"
-            )
+            self.log(f"[MOTOR ERROR] {exc}")
 
 
 
@@ -180,51 +156,47 @@ class ControlInterface:
 
 
 
-    # ------------------------------------------------------------------
     # Barrido
-    # ------------------------------------------------------------------
+    def iniciar_barrido(self,):
 
-    def iniciar_barrido(
-        self,
-    ):
+        csv_filename = dpg.get_value("archivo_csv")
 
+        if csv_filename == '':
+            dpg.show_item("modal_id")
+        else:
+            self.controller.start_voltage_sweep(
 
-        self.controller.start_voltage_sweep(
+                start_position_mm=
+                dpg.get_value(
+                    "posicion_inicio"
+                ),
 
-            start_position_mm=
-            dpg.get_value(
-                "posicion_inicio"
-            ),
+                end_position_mm=
+                dpg.get_value(
+                    "posicion_final"
+                ),
 
-            end_position_mm=
-            dpg.get_value(
-                "posicion_final"
-            ),
+                number_of_points=
+                dpg.get_value(
+                    "cantidad_puntos"
+                ),
 
-            number_of_points=
-            dpg.get_value(
-                "cantidad_puntos"
-            ),
+                stabilization_time_s=
+                dpg.get_value(
+                    "tiempo_estabilizacion"
+                ),
 
-            stabilization_time_s=
-            dpg.get_value(
-                "tiempo_estabilizacion"
-            ),
+                csv_filename=csv_filename,
 
-            csv_filename=
-            dpg.get_value(
-                "archivo_csv"
-            ),
+                on_progress=
+                self.actualizar_barrido,
 
-            on_progress=
-            self.actualizar_barrido,
-
-            on_finished=
-            self.mostrar_pico,
-        )
+                on_finished=
+                self.mostrar_pico,
+            )
 
 
-        self.log("[BARRIDO] Iniciado")
+            self.log("[BARRIDO] Iniciado")
 
 
     def actualizar_barrido(
@@ -250,9 +222,7 @@ class ControlInterface:
         )
 
 
-    def iniciar_calibracion(
-        self,
-    ):
+    def iniciar_calibracion(self,):
 
         try:
 
@@ -331,17 +301,9 @@ class ControlInterface:
         )
 
 
-    # ------------------------------------------------------------------
     # Construcción UI
-    # ------------------------------------------------------------------
-
-    def construir(
-        self,
-    ):
-
-
+    def construir(self,):
         dpg.create_context()
-
 
         dpg.create_viewport(
             title="Refractometro",
@@ -349,28 +311,15 @@ class ControlInterface:
             height=700,
         )
 
+        with dpg.window(tag="ventana_principal",):
+            with dpg.group(horizontal=True,):
 
-        with dpg.window(
-            tag="ventana_principal",
-        ):
-
-
-            with dpg.group(
-                horizontal=True,
-            ):
-
-
-                # ======================================================
                 # ESP32
-                # ======================================================
-
                 with dpg.child_window(
                     width=450,
                 ):
 
-                    dpg.add_text(
-                        "Sensor ESP32",
-                    )
+                    dpg.add_text("Sensor ESP32",)
 
 
                     dpg.add_combo(
@@ -408,9 +357,7 @@ class ControlInterface:
                     dpg.add_separator()
 
 
-                    dpg.add_text(
-                        "Voltaje medido:",
-                    )
+                    dpg.add_text("Voltaje medido:",)
 
 
                     dpg.add_text(
@@ -420,17 +367,12 @@ class ControlInterface:
 
 
 
-                # ======================================================
                 # MOTOR
-                # ======================================================
-
                 with dpg.child_window(
                     width=450,
                 ):
 
-                    dpg.add_text(
-                        "Motor Zaber",
-                    )
+                    dpg.add_text("Motor Zaber",)
 
 
                     dpg.add_combo(
@@ -467,9 +409,7 @@ class ControlInterface:
                     dpg.add_separator()
 
 
-                    dpg.add_text(
-                        "Barrido de voltaje",
-                    )
+                    dpg.add_text("Barrido de voltaje",)
 
 
                     dpg.add_input_float(
@@ -499,13 +439,38 @@ class ControlInterface:
                         default_value=0.2,
                     )
 
-
-                    dpg.add_input_text(
-                        tag="archivo_csv",
-                        label="Archivo CSV",
-                        default_value="barrido_potencia.csv",
+                    dpg.add_text(
+                        "Selecciona un archivo",
                     )
 
+                    dpg.add_text(
+                        "",
+                        tag="archivo_csv",
+                    )
+
+                    dpg.add_button(label="Abrir selector archivo", callback=lambda: dpg.show_item("file_dialog_id"))
+
+                    def file_picker_callback(sender, file_data):
+                        #print(file_data)
+                        # {'file_path_name': '/home/tetra/ss/refractometro/results/barrido_potenciacsv',
+                        # 'file_name': 'barrido_potenciacsv', 'current_path':
+                        # '/home/tetra/ss/refractometro/results', 'current_filter': '', 'min_size':
+                        # [100.0, 100.0], 'max_size': [30000.0, 30000.0], 'selections': {}}
+
+                        dpg.set_value("archivo_csv", file_data['file_path_name'])
+
+
+                    with dpg.file_dialog(
+                        show=False,
+                        tag="file_dialog_id",
+                        label="Archivo CSV",
+                        default_filename="barrido",
+                        callback=file_picker_callback,
+                        width=700 ,height=400):
+
+                            dpg.add_file_extension(".csv")
+
+                        
 
                     dpg.add_button(
                         label="Iniciar barrido",
@@ -527,6 +492,14 @@ class ControlInterface:
                         "",
                         tag="resultado_maximo",
                     )
+
+
+                    with dpg.popup(dpg.last_item(),
+                                mousebutton=dpg.mvMouseButton_Left,
+                                modal=True,
+                                tag="modal_id"):
+                        dpg.add_text("Ingresa un nombre de archivo.")
+                        dpg.add_button(label="Close", callback=lambda: dpg.configure_item("modal_id", show=False))
 
 
 
@@ -603,6 +576,7 @@ class ControlInterface:
 
         self.actualizar_puertos()
 
+
     def actualizar_curva(
         self,
         curve_tag: str,
@@ -672,6 +646,7 @@ class ControlInterface:
                 self.controller.calibration.measurements,
             )
 
+
     def iniciar_medicion_corregida(
         self,
     ):
@@ -719,6 +694,7 @@ class ControlInterface:
                 f"[MEDICIÓN ERROR] {exc}"
             )
 
+
     def medicion_corregida_finalizada(
         self,
         raw_measurements,
@@ -735,18 +711,11 @@ class ControlInterface:
             "[MEDICIÓN] Finalizada"
         )
 
-    def ejecutar(
-        self,
-    ):
 
+    def ejecutar(self,):
         while dpg.is_dearpygui_running():
-
             dpg.render_dearpygui_frame()
 
 
-
-    def cerrar(
-        self,
-    ):
-
+    def cerrar(self,):
         dpg.destroy_context()
