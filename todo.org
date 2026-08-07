@@ -1,0 +1,12 @@
+#+title: Todo
+
+* TODO Refactorizar proyecto para quitar dependencias de motor y sensor al abrir la aplicación
+ La logica de seleción de puertos no deberia de depender de que algun motor o sensor ya esten conectados
+* TODO Agregar puertos simulados a los dropdowns y quitar hardcoding de simulación
+* TODO Hacer más sencilla de usar la interface y quitar botones y callbacks redundantes.
+* TODO Pensar en el workflow de un usuario
++ Multiples lecturas -> diferentes nombres de archivo
++ File picker 
++ Calibración inicial (recuerda que los valores dependen de la cantidad de puntos)
+* TODO Quitar logica de cantidad de puntos y cambiar a un slider de resolución
+* TODO Dar proporciones correctas a las graficas para no tener que mover su vista

@@ -1,0 +1,11 @@
+[project]
+name = "Refractometro"
+version = "0.1.0"
+description = "Aplicación gráfica para control de un refractometro"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dearpygui>=2.3.1",
+    "pyserial>=3.5",
+    "zaber-motion>=10.0.0",
+]

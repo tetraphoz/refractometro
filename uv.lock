@@ -1,0 +1,82 @@
+version = 1
+revision = 3
+requires-python = ">=3.13"
+
+[[package]]
+name = "dearpygui"
+version = "2.3.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/db/56a293ad392b8dafdd3eb1a0c4d367efbde99aa6930359685fe270984dd1/dearpygui-2.3.1-cp313-cp313-macosx_13_0_arm64.whl", hash = "sha256:d2d29e72b031886893b32269e1478eff1fd651512e6c2bceda91059c3bc8ee0e", size = 2002694, upload-time = "2026-05-01T22:46:01.425Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/e0/df598671f40a7fffb8390946115d9e9cf12d3f4a52f5b9381bddc5699aee/dearpygui-2.3.1-cp313-cp313-manylinux1_x86_64.whl", hash = "sha256:e3f64c8d4cae68a3b5be1b7531d08400ccbf1e4ff03c7acfc85954f98993f864", size = 2678564, upload-time = "2026-05-01T22:46:08.706Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/d1/87cfb577d4a1615e809e2f6e0fd720bd4ad6cd25e365ef2fd08a6e09c86e/dearpygui-2.3.1-cp313-cp313-manylinux2014_aarch64.whl", hash = "sha256:0d8b7a5a04cd4a6e25dbf162aa0405cf12143a1c82b33e371c20e5ba8d9349f3", size = 2503196, upload-time = "2026-05-01T22:46:20.276Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/38/05f74181a59353bdc927b6ec46333714f633c5755f3d4bcda34d6eb100a5/dearpygui-2.3.1-cp313-cp313-win_amd64.whl", hash = "sha256:7946722c50f1e08866dfdb78eb33dd4e67dea1a3cfe4400b159e1c96861116dc", size = 1882082, upload-time = "2026-05-01T22:45:50.915Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/08/68ce3ba941cf09bcf288f2603d7178c936d473172fd545e0665b885cb840/dearpygui-2.3.1-cp314-cp314-macosx_13_0_arm64.whl", hash = "sha256:e2cbabd8d383308ea3520360e100d1e95c9a957cd26247431cd4920b23c3b56e", size = 2003034, upload-time = "2026-05-01T22:46:02.736Z" },
+    { url = "https://files.pythonhosted.org/packages/f3/3f/ac003b6d636c9f5aae910a62d00b6c119403212cf2d7772d7c59ca8ef6dd/dearpygui-2.3.1-cp314-cp314-manylinux1_x86_64.whl", hash = "sha256:953442c7272e57f3686e393edc5cf6ce73cc2f47142739735dfabed403e33770", size = 2678545, upload-time = "2026-05-01T22:46:10.181Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/6b/657a2f1e2f604f356c39ed5b870aaed5d07fdeac3139fae2a455473b64ca/dearpygui-2.3.1-cp314-cp314-manylinux2014_aarch64.whl", hash = "sha256:43a561b5dc589944a3a2b469e5e68f1ab35ae38b3dcdf1f813ed9d6e024153f8", size = 2501699, upload-time = "2026-05-01T22:46:21.497Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/56/93b2310891589063e0226cb07fe05e08fbdb3f409f80f9edefb1cebea84e/dearpygui-2.3.1-cp314-cp314-win_amd64.whl", hash = "sha256:272cc52c66bc5a4a332f13a3af5e603070d47ca7cc4976e6a8c247594e2b3dd0", size = 1943067, upload-time = "2026-05-01T22:45:52.255Z" },
+]
+
+[[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
+]
+
+[[package]]
+name = "reactivex"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b6/af/38a4b62468e4c5bd50acf511d86fe62e65a466aa6abb55b1d59a4a9e57f3/reactivex-4.1.0.tar.gz", hash = "sha256:c7499e3c802bccaa20839b3e17355a7d939573fded3f38ba3d4796278a169a3d", size = 113482, upload-time = "2025-11-05T21:44:24.557Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/9e/3c2f5d3abb6c5d82f7696e1e3c69b7279049e928596ce82ed25ca97a08f3/reactivex-4.1.0-py3-none-any.whl", hash = "sha256:485750ec8d9b34bcc8ff4318971d234dc4f595058a1b4435a74aefef4b2bc9bd", size = 218588, upload-time = "2025-11-05T21:44:23.015Z" },
+]
+
+[[package]]
+name = "refractometro"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "dearpygui" },
+    { name = "pyserial" },
+    { name = "zaber-motion" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dearpygui", specifier = ">=2.3.1" },
+    { name = "pyserial", specifier = ">=3.5" },
+    { name = "zaber-motion", specifier = ">=10.0.0" },
+]
+
+[[package]]
+name = "typing-extensions"
+version = "4.16.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
+]
+
+[[package]]
+name = "zaber-motion"
+version = "10.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "reactivex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/c2/2f127393f469591a03e6c96c016fdf5866acafeab6024fb8367c532b27f2/zaber_motion-10.0.0.tar.gz", hash = "sha256:49d16859ce8fda2157ecca977638fd03d3f48fd82c860fcaca0f19f654bd8891", size = 326082, upload-time = "2026-07-23T20:25:00.377Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/b7/bfe36d916c8e1358ba84e1565835ee29f72d0178d68122ae8f38c2c1cc50/zaber_motion-10.0.0-py3-none-macosx_10_4_universal2.whl", hash = "sha256:5081d5e4e48d22f48069a9c39c924f14479b5df6ccca990b9f32e7f1d667d411", size = 14532113, upload-time = "2026-07-23T20:24:44.362Z" },
+    { url = "https://files.pythonhosted.org/packages/89/e0/cfad29ff739ec7fe98baa90ad5f8be25000c3c19058e031198edc40529d9/zaber_motion-10.0.0-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:19066da7eb2951a5f483d6f512a52bc194b576196e4402b272eb370bbe50d4f7", size = 7365834, upload-time = "2026-07-23T20:24:47.041Z" },
+    { url = "https://files.pythonhosted.org/packages/02/c9/a43e45b7a4ae3ad0a1ed79b5563e8a75ba9ca76038ce59f6ff6bcd0b25bf/zaber_motion-10.0.0-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:d277b428aa4e71f1a270d7173488561a005cf74fa49d62424a5bb546b8e9ba0b", size = 8114780, upload-time = "2026-07-23T20:24:51.741Z" },
+    { url = "https://files.pythonhosted.org/packages/68/97/ee0914dd93c14339e23dd669595c58ef7ff385de80ed1271ec78611c4fdd/zaber_motion-10.0.0-py3-none-win32.whl", hash = "sha256:e9038485f804c799429191e7ed4a79994e674d41e9fa634e48f428289f6742fc", size = 7683702, upload-time = "2026-07-23T20:24:54.206Z" },
+    { url = "https://files.pythonhosted.org/packages/26/0b/f328468bab54295537d4eb8621b2f623c2e82f709d9a4ce6cef81582fe9b/zaber_motion-10.0.0-py3-none-win_amd64.whl", hash = "sha256:ada1209498b06f9b787f5ef2c4daf9f619039a6e7f18ada965cdc290d6877a9b", size = 7867646, upload-time = "2026-07-23T20:24:56.272Z" },
+    { url = "https://files.pythonhosted.org/packages/29/d4/f2058efdad35cbeb85c806ce5d019f321695eaf2585604775c281be00cc9/zaber_motion-10.0.0-py3-none-win_arm64.whl", hash = "sha256:89736e044ec230326602a14d2151a3b480a9d2df93cca03d5e50196dc5357ed5", size = 7128866, upload-time = "2026-07-23T20:24:58.183Z" },
+]
