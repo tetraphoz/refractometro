@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import bisect
+import csv
+import os
+from collections import deque
+
 import dearpygui.dearpygui as dpg
 import serial.tools.list_ports
 
@@ -12,6 +17,25 @@ class ControlInterface:
     y solamente solicita acciones.
     """
 
+    # Rango fijo del eje horizontal del gráfico (mm)
+    X_AXIS_MIN = 0
+    X_AXIS_MAX = 12
+
+    # Carpeta donde se escriben los CSV que el controlador genera durante
+    # una corrida en curso (registro en vivo). El guardado que el usuario
+    # controla explícitamente ocurre por separado, desde el botón
+    # "Guardar" de cada fila del historial.
+    RUNS_DIR = "runs"
+
+    # Botones que disparan operaciones de hardware bloqueantes/largas.
+    # Se deshabilitan mientras una operación está en curso para evitar
+    # solicitudes superpuestas (p. ej. iniciar un barrido mientras otro
+    # sigue corriendo, o mover el motor a mitad de una calibración).
+    OPERATION_BUTTONS = (
+        "barrido_btn",
+        "calibrar_btn",
+        "mover_btn",
+    )
 
     def __init__(
         self,
@@ -20,7 +44,30 @@ class ControlInterface:
 
         self.controller = controller
 
+        # deque con límite: evita reconstruir la lista completa de líneas
+        # (splitlines + join) en cada llamada a log().
+        self._log_lines: deque[str] = deque(maxlen=300)
 
+        # Historial de corridas (barrido / calibración / corregido). Cada
+        # una queda como su propia curva en el gráfico -en vez de
+        # reemplazar siempre las mismas curvas- para poder comparar varias
+        # mediciones entre sí, incluso si tienen distinta cantidad de
+        # puntos.
+        self._history: list[dict] = []
+        self._history_by_id: dict[int, dict] = {}
+        self._run_counter = 0
+
+        # Corrida en curso (None si no hay ninguna). Los callbacks de
+        # progreso/finalización escriben sobre esta corrida.
+        self._active_run: dict | None = None
+
+        # Corrida seleccionada para guardar, mientras el diálogo de
+        # guardado está abierto.
+        self._run_a_guardar: dict | None = None
+
+        # Corrida seleccionada para corregir, mientras el modal de
+        # selección de blanco está abierto.
+        self._run_a_corregir: dict | None = None
 
     # Helpers
     def log(
@@ -28,23 +75,447 @@ class ControlInterface:
         message: str,
     ) -> None:
 
-        current = dpg.get_value("registro",)
-
-        lines = (current.splitlines())
-
-        lines.append(message)
-
-
-        if len(lines) > 300:
-            lines = lines[-300:]
-
+        self._log_lines.append(message)
 
         dpg.set_value(
             "registro",
-            "\n".join(lines),
+            "\n".join(self._log_lines),
         )
 
+    def _set_operation_buttons_enabled(self, enabled: bool) -> None:
+        for tag in self.OPERATION_BUTTONS:
+            if dpg.does_item_exist(tag):
+                dpg.configure_item(tag, enabled=enabled)
 
+    # Historial de corridas
+    def _crear_run(
+        self,
+        kind: str,
+        label: str,
+    ) -> dict:
+        """Crea una nueva corrida EN VIVO: reserva un id, agrega su curva
+        vacía al gráfico y una fila en el panel de historial. Queda como
+        la corrida activa hasta que termine o falle; los callbacks de
+        progreso van llenando measurements/curva a medida que llegan.
+        """
+
+        self._run_counter += 1
+        run_id = self._run_counter
+
+        curve_tag = f"curva_{kind}_{run_id}"
+
+        dpg.add_line_series(
+            [],
+            [],
+            label=label,
+            parent="voltage_axis",
+            tag=curve_tag,
+        )
+
+        run = self._registrar_run(run_id, kind, label, curve_tag)
+        run["measurements"] = []
+
+        self._active_run = run
+
+        return run
+
+    def _crear_run_calculado(
+        self,
+        kind: str,
+        label: str,
+        measurements: list[MeasurementPoint],
+    ) -> dict:
+        """Crea una corrida ya resuelta (p. ej. el resultado de restar un
+        blanco a otra corrida): la curva se dibuja de una sola vez con
+        los datos ya calculados, sin pasar por el mecanismo de
+        progreso/corrida activa.
+        """
+
+        self._run_counter += 1
+        run_id = self._run_counter
+
+        curve_tag = f"curva_{kind}_{run_id}"
+
+        dpg.add_line_series(
+            [m.position_mm for m in measurements],
+            [m.voltage_v for m in measurements],
+            label=label,
+            parent="voltage_axis",
+            tag=curve_tag,
+        )
+
+        run = self._registrar_run(run_id, kind, label, curve_tag)
+        run["measurements"] = measurements
+
+        return run
+
+    def _registrar_run(
+        self,
+        run_id: int,
+        kind: str,
+        label: str,
+        curve_tag: str,
+    ) -> dict:
+
+        run = {
+            "id": run_id,
+            "kind": kind,
+            "label": label,
+            "curve_tag": curve_tag,
+            "measurements": [],
+            "peak": None,
+            # Solo los barridos lo llenan (ver iniciar_barrido): ruta del
+            # CSV que el controlador ya guarda automáticamente.
+            "csv_filename": None,
+            "row_tag": f"historial_fila_{run_id}",
+            "texto_tag": f"historial_texto_{run_id}",
+        }
+
+        self._history.append(run)
+        self._history_by_id[run_id] = run
+
+        self._agregar_fila_historial(run)
+
+        return run
+
+    def _agregar_fila_historial(self, run: dict) -> None:
+
+        with dpg.group(
+            tag=run["row_tag"],
+            parent="historial_lista",
+        ):
+
+            with dpg.group(horizontal=True):
+
+                dpg.add_checkbox(
+                    default_value=True,
+                    callback=self._alternar_visibilidad_run,
+                    user_data=run["id"],
+                )
+
+                dpg.add_text(
+                    run["label"],
+                    tag=run["texto_tag"],
+                )
+
+            with dpg.group(horizontal=True):
+
+                dpg.add_button(
+                    label="Guardar",
+                    callback=self._click_guardar_run,
+                    user_data=run["id"],
+                    width=70,
+                )
+
+                dpg.add_button(
+                    label="Corregir",
+                    callback=self._click_corregir_run,
+                    user_data=run["id"],
+                    width=70,
+                )
+
+                dpg.add_button(
+                    label="✕",
+                    callback=self._click_eliminar_run,
+                    user_data=run["id"],
+                    width=30,
+                )
+
+            dpg.add_separator()
+
+    def _actualizar_texto_historial(self, run: dict) -> None:
+
+        texto = run["label"]
+
+        peak = run.get("peak")
+        if peak is not None:
+            texto += (
+                f" — pico {peak.voltage_v:.4f}V"
+                f" @ {peak.position_mm:.2f}mm"
+            )
+
+        if dpg.does_item_exist(run["texto_tag"]):
+            dpg.set_value(run["texto_tag"], texto)
+
+    def _alternar_visibilidad_run(self, sender, value, user_data) -> None:
+
+        run = self._history_by_id.get(user_data)
+
+        if run is None:
+            return
+
+        if dpg.does_item_exist(run["curve_tag"]):
+            dpg.configure_item(run["curve_tag"], show=value)
+
+    def _eliminar_run(self, run: dict) -> None:
+
+        if dpg.does_item_exist(run["curve_tag"]):
+            dpg.delete_item(run["curve_tag"])
+
+        if dpg.does_item_exist(run["row_tag"]):
+            dpg.delete_item(run["row_tag"])
+
+        self._history_by_id.pop(run["id"], None)
+
+        if run in self._history:
+            self._history.remove(run)
+
+    def _click_eliminar_run(self, sender, app_data, user_data) -> None:
+
+        run = self._history_by_id.get(user_data)
+
+        if run is None:
+            return
+
+        if self._active_run is run:
+            self.log(
+                "[HISTORIAL] No se puede eliminar una corrida en curso"
+            )
+            return
+
+        self._eliminar_run(run)
+
+    def limpiar_historial(self) -> None:
+
+        if self._active_run is not None:
+            self.log(
+                "[HISTORIAL] No se puede limpiar mientras hay una "
+                "corrida en curso"
+            )
+            return
+
+        for run in list(self._history):
+            self._eliminar_run(run)
+
+        dpg.set_value("resultado_maximo", "")
+
+    # Guardado individual
+    def _click_guardar_run(self, sender, app_data, user_data) -> None:
+
+        run = self._history_by_id.get(user_data)
+
+        if run is None:
+            return
+
+        self._run_a_guardar = run
+
+        # Los barridos ya quedan guardados automáticamente por el
+        # controlador en runs/barrido_<id>.csv (ver iniciar_barrido);
+        # se usa el mismo nombre como sugerencia acá para no terminar
+        # con dos archivos distintos para la misma corrida, a menos que
+        # el usuario elija explícitamente otro nombre o carpeta.
+        csv_filename = run.get("csv_filename")
+
+        if csv_filename:
+            nombre_sugerido = os.path.splitext(
+                os.path.basename(csv_filename)
+            )[0]
+        else:
+            nombre_sugerido = f"{run['kind']}_{run['id']}"
+
+        dpg.configure_item(
+            "guardar_historial_dialog",
+            default_filename=nombre_sugerido,
+        )
+
+        dpg.show_item("guardar_historial_dialog")
+
+    def _file_picker_guardar_historial(self, sender, file_data) -> None:
+
+        run = self._run_a_guardar
+        self._run_a_guardar = None
+
+        if run is None:
+            return
+
+        path = file_data["file_path_name"]
+
+        if not path.lower().endswith(".csv"):
+            path += ".csv"
+
+        try:
+            self._exportar_run_csv(run, path)
+            self.log(f"[HISTORIAL] Guardado: {path}")
+
+        except Exception as exc:
+            self.log(f"[HISTORIAL ERROR] {exc}")
+
+    def _exportar_run_csv(self, run: dict, path: str) -> None:
+
+        measurements = run.get("measurements") or []
+
+        with open(path, "w", newline="") as f:
+
+            writer = csv.writer(f)
+            writer.writerow(["position_mm", "voltage_v"])
+
+            for m in measurements:
+                writer.writerow([m.position_mm, m.voltage_v])
+
+    # Corrección por sustracción de blanco
+    def _click_corregir_run(self, sender, app_data, user_data) -> None:
+
+        run = self._history_by_id.get(user_data)
+
+        if run is None:
+            return
+
+        if not run.get("measurements"):
+            self.log(
+                "[CORRECCIÓN] Esa corrida todavía no tiene mediciones"
+            )
+            return
+
+        opciones = [
+            r["label"]
+            for r in self._history
+            if r["id"] != run["id"]
+            and r is not self._active_run
+            and r.get("measurements")
+        ]
+
+        if not opciones:
+            self.log(
+                "[CORRECCIÓN] No hay otra corrida disponible como "
+                "referencia (blanco sin muestra)"
+            )
+            return
+
+        self._run_a_corregir = run
+
+        dpg.configure_item("combo_blanco", items=opciones)
+        dpg.set_value("combo_blanco", opciones[0])
+
+        dpg.set_value(
+            "texto_corregir",
+            f"Corrida a corregir: {run['label']}",
+        )
+
+        dpg.show_item("modal_corregir")
+
+    def _cancelar_correccion(self) -> None:
+
+        self._run_a_corregir = None
+        dpg.hide_item("modal_corregir")
+
+    def _aplicar_correccion(self, sender, app_data) -> None:
+
+        run = self._run_a_corregir
+        self._run_a_corregir = None
+
+        dpg.hide_item("modal_corregir")
+
+        if run is None:
+            return
+
+        etiqueta_blanco = dpg.get_value("combo_blanco")
+
+        blanco = next(
+            (r for r in self._history if r["label"] == etiqueta_blanco),
+            None,
+        )
+
+        if blanco is None:
+            self.log(
+                "[CORRECCIÓN ERROR] No se encontró la corrida de "
+                "referencia elegida"
+            )
+            return
+
+        try:
+            corregidos = self._restar_blanco(run, blanco)
+
+        except Exception as exc:
+            self.log(f"[CORRECCIÓN ERROR] {exc}")
+            return
+
+        nuevo = self._crear_run_calculado(
+            "corregido",
+            f"Corregido #{self._run_counter + 1}: "
+            f"{run['label']} − {blanco['label']}",
+            corregidos,
+        )
+
+        self.log(f"[CORRECCIÓN] {nuevo['label']} calculado")
+
+    def _restar_blanco(
+        self,
+        run: dict,
+        blanco: dict,
+    ) -> list[MeasurementPoint]:
+        """Resta, punto a punto, el voltaje de una corrida de referencia
+        (blanco: una corrida limpia, sin muestra en el portamuestras) al
+        voltaje de la corrida real, para eliminar el ruido/offset propio
+        del sistema. Como las dos corridas pueden tener distinta cantidad
+        de puntos, el voltaje del blanco se interpola linealmente a cada
+        posición de la corrida real.
+        """
+
+        measurements = run.get("measurements") or []
+        referencia = sorted(
+            blanco.get("measurements") or [],
+            key=lambda m: m.position_mm,
+        )
+
+        if not measurements or not referencia:
+            raise ValueError(
+                "Ambas corridas necesitan mediciones para poder restar"
+            )
+
+        posiciones_ref = [m.position_mm for m in referencia]
+        voltajes_ref = [m.voltage_v for m in referencia]
+
+        corregidos = []
+
+        for m in measurements:
+
+            v_ref = self._interpolar(
+                posiciones_ref,
+                voltajes_ref,
+                m.position_mm,
+            )
+
+            corregidos.append(
+                MeasurementPoint(
+                    position_mm=m.position_mm,
+                    voltage_v=m.voltage_v - v_ref,
+                )
+            )
+
+        return corregidos
+
+    @staticmethod
+    def _interpolar(
+        posiciones: list[float],
+        voltajes: list[float],
+        x: float,
+    ) -> float:
+
+        n = len(posiciones)
+
+        if n == 0:
+            return 0.0
+
+        if n == 1:
+            return voltajes[0]
+
+        if x <= posiciones[0]:
+            return voltajes[0]
+
+        if x >= posiciones[-1]:
+            return voltajes[-1]
+
+        i = bisect.bisect_left(posiciones, x)
+
+        x0, x1 = posiciones[i - 1], posiciones[i]
+        y0, y1 = voltajes[i - 1], voltajes[i]
+
+        if x1 == x0:
+            return y0
+
+        t = (x - x0) / (x1 - x0)
+
+        return y0 + t * (y1 - y0)
 
     def actualizar_puertos(
         self,
@@ -56,25 +527,25 @@ class ControlInterface:
             in serial.tools.list_ports.comports()
         ]
 
-
         if not ports:
             ports = [
                 "Sin puertos"
             ]
-
+            self.log("[PUERTOS] No se encontraron puertos seriales")
+        else:
+            self.log(
+                f"[PUERTOS] Encontrados: {', '.join(ports)}"
+            )
 
         dpg.configure_item(
             "puerto_esp32",
             items=ports,
         )
 
-
         dpg.configure_item(
             "puerto_motor",
             items=ports,
         )
-
-
 
     # Callbacks ESP32
     def conectar_esp32(self,):
@@ -91,33 +562,18 @@ class ControlInterface:
                 ),
             )
 
-
             dpg.set_value(
                 "estado_esp32",
                 "Conectado",
             )
 
-
             self.log("[ESP32] Conectado")
-
 
         except Exception as exc:
 
             self.log(
                 f"[ESP32 ERROR] {exc}"
             )
-
-
-
-    def desconectar_esp32(self,):
-
-        self.controller.disconnect_sensor()
-
-        dpg.set_value(
-            "estado_esp32",
-            "Desconectado",
-        )
-
 
     # Callbacks motor
     def conectar_motor(self,):
@@ -129,41 +585,76 @@ class ControlInterface:
                 )
             )
 
-
             dpg.set_value(
                 "estado_motor",
                 "Conectado",
             )
 
-
             self.log("[MOTOR] Conectado")
-
 
         except Exception as exc:
             self.log(f"[MOTOR ERROR] {exc}")
-
-
 
     def mover_motor(
         self,
     ):
 
-        self.controller.move_motor(
-            dpg.get_value(
-                "posicion_objetivo"
+        try:
+            self._set_operation_buttons_enabled(False)
+
+            self.controller.move_motor(
+                dpg.get_value(
+                    "posicion_objetivo"
+                )
             )
-        )
 
+            self.log("[MOTOR] Movimiento completado")
 
+        except Exception as exc:
+
+            self.log(f"[MOTOR ERROR] {exc}")
+
+        finally:
+            self._set_operation_buttons_enabled(True)
 
     # Barrido
     def iniciar_barrido(self,):
 
-        csv_filename = dpg.get_value("archivo_csv")
+        cantidad_puntos = dpg.get_value("cantidad_puntos")
 
-        if csv_filename == '':
-            dpg.show_item("modal_id")
-        else:
+        if cantidad_puntos < 1:
+            self.log(
+                "[BARRIDO ERROR] La cantidad de puntos debe ser mayor a 0"
+            )
+            return
+
+        run = None
+
+        try:
+            self._set_operation_buttons_enabled(False)
+
+            dpg.set_value("resultado_maximo", "Midiendo...")
+
+            run = self._crear_run(
+                "barrido",
+                f"Barrido #{self._run_counter + 1} "
+                f"({cantidad_puntos} pts)",
+            )
+
+            # start_voltage_sweep guarda a CSV incondicionalmente
+            # (ver ApplicationController), así que esto es un respaldo
+            # automático, no una elección del usuario. Se guarda la
+            # ruta en el run para sugerirla como nombre por defecto si
+            # el usuario después usa "Guardar" en el historial, en vez
+            # de terminar con dos archivos distintos para la misma
+            # corrida.
+            os.makedirs(self.RUNS_DIR, exist_ok=True)
+            csv_filename = os.path.join(
+                self.RUNS_DIR,
+                f"barrido_{run['id']}.csv",
+            )
+            run["csv_filename"] = csv_filename
+
             self.controller.start_voltage_sweep(
 
                 start_position_mm=
@@ -176,10 +667,7 @@ class ControlInterface:
                     "posicion_final"
                 ),
 
-                number_of_points=
-                dpg.get_value(
-                    "cantidad_puntos"
-                ),
+                number_of_points=cantidad_puntos,
 
                 stabilization_time_s=
                 dpg.get_value(
@@ -195,9 +683,17 @@ class ControlInterface:
                 self.mostrar_pico,
             )
 
-
             self.log("[BARRIDO] Iniciado")
 
+        except Exception as exc:
+
+            self.log(f"[BARRIDO ERROR] {exc}")
+
+            if run is not None:
+                self._eliminar_run(run)
+
+            self._active_run = None
+            self._set_operation_buttons_enabled(True)
 
     def actualizar_barrido(
         self,
@@ -207,24 +703,45 @@ class ControlInterface:
         if not measurements:
             return
 
+        run = self._active_run
+
+        if run is None:
+            return
 
         latest = measurements[-1]
 
+        # Los callbacks de progreso/finalización pueden llegar desde un
+        # hilo de trabajo (el barrido corre con demoras de estabilización).
+        # dpg.mutex() serializa el acceso al estado de DearPyGui para
+        # evitar carreras con el hilo principal de renderizado.
+        with dpg.mutex():
 
-        dpg.set_value(
-            "voltaje_actual",
-            f"{latest.voltage_v:.4f} V",
-        )
+            run["measurements"] = list(measurements)
 
+            dpg.set_value(
+                "voltaje_actual",
+                f"{latest.voltage_v:.4f} V",
+            )
 
-        self.actualizar_grafica(
-            measurements
-        )
-
+            self.actualizar_curva(
+                run["curve_tag"],
+                measurements,
+            )
 
     def iniciar_calibracion(self,):
 
+        run = None
+
         try:
+            self._set_operation_buttons_enabled(False)
+
+            cantidad_puntos = dpg.get_value("cantidad_puntos")
+
+            run = self._crear_run(
+                "calibracion",
+                f"Calibración #{self._run_counter + 1} "
+                f"({cantidad_puntos} pts)",
+            )
 
             self.controller.start_calibration(
 
@@ -238,10 +755,7 @@ class ControlInterface:
                     "posicion_final"
                 ),
 
-                number_of_points=
-                dpg.get_value(
-                    "cantidad_puntos"
-                ),
+                number_of_points=cantidad_puntos,
 
                 stabilization_time_s=
                 dpg.get_value(
@@ -255,11 +769,9 @@ class ControlInterface:
                 self.calibracion_finalizada,
             )
 
-
             self.log(
                 "[CALIBRACIÓN] Iniciada"
             )
-
 
         except Exception as exc:
 
@@ -267,315 +779,423 @@ class ControlInterface:
                 f"[CALIBRACIÓN ERROR] {exc}"
             )
 
+            if run is not None:
+                self._eliminar_run(run)
+
+            self._active_run = None
+            self._set_operation_buttons_enabled(True)
 
     def calibracion_finalizada(
         self,
         measurements,
     ):
 
-        self.log(
-            "[CALIBRACIÓN] Finalizada"
-        )
+        with dpg.mutex():
 
+            run = self._active_run
 
-        self.log(
-            (
-                "[CALIBRACIÓN] "
-                f"{len(measurements)} puntos almacenados"
+            if run is not None:
+                run["measurements"] = list(measurements)
+
+            self.log(
+                "[CALIBRACIÓN] Finalizada"
             )
-        )
 
+            self.log(
+                (
+                    "[CALIBRACIÓN] "
+                    f"{len(measurements)} puntos almacenados"
+                )
+            )
+
+        self._active_run = None
+        self._set_operation_buttons_enabled(True)
 
     def mostrar_pico(
         self,
         peak: MeasurementPoint,
     ):
 
-        dpg.set_value(
-            "resultado_maximo",
-            (
-                "Máximo encontrado:\n"
-                f"{peak.voltage_v:.4f} V\n"
-                f"Posición: {peak.position_mm:.4f} mm"
-            ),
-        )
+        with dpg.mutex():
 
+            run = self._active_run
+
+            if run is not None:
+                run["peak"] = peak
+                self._actualizar_texto_historial(run)
+
+            dpg.set_value(
+                "resultado_maximo",
+                (
+                    "Máximo encontrado:\n"
+                    f"{peak.voltage_v:.4f} V\n"
+                    f"Posición: {peak.position_mm:.4f} mm"
+                ),
+            )
+
+            self.log("[BARRIDO] Finalizado")
+
+        self._active_run = None
+        self._set_operation_buttons_enabled(True)
 
     # Construcción UI
-    def construir(self,):
+    def construir(self):
+
         dpg.create_context()
 
+        # self.crear_temas()
+
         dpg.create_viewport(
-            title="Refractometro",
-            width=950,
-            height=700,
+            title="Refractómetro",
+            width=1400,
+            height=900,
         )
 
-        with dpg.window(tag="ventana_principal",):
-            with dpg.group(horizontal=True,):
-
-                # ESP32
-                with dpg.child_window(
-                    width=450,
-                ):
-
-                    dpg.add_text("Sensor ESP32",)
-
-
-                    dpg.add_combo(
-                        tag="puerto_esp32",
-                        label="Puerto ESP32",
-                        items=[],
-                    )
-
-
-                    dpg.add_input_int(
-                        tag="baudrate",
-                        label="Velocidad de comunicación",
-                        default_value=115200,
-                    )
-
-
-                    dpg.add_button(
-                        label="Conectar ESP32",
-                        callback=self.conectar_esp32,
-                    )
-
-
-                    dpg.add_button(
-                        label="Desconectar ESP32",
-                        callback=self.desconectar_esp32,
-                    )
-
-
-                    dpg.add_text(
-                        "Desconectado",
-                        tag="estado_esp32",
-                    )
-
-
-                    dpg.add_separator()
-
-
-                    dpg.add_text("Voltaje medido:",)
-
-
-                    dpg.add_text(
-                        "-- V",
-                        tag="voltaje_actual",
-                    )
-
-
-
-                # MOTOR
-                with dpg.child_window(
-                    width=450,
-                ):
-
-                    dpg.add_text("Motor Zaber",)
-
-
-                    dpg.add_combo(
-                        tag="puerto_motor",
-                        label="Puerto motor",
-                        items=[],
-                    )
-
-
-                    dpg.add_button(
-                        label="Conectar motor",
-                        callback=self.conectar_motor,
-                    )
-
-
-                    dpg.add_text(
-                        "Desconectado",
-                        tag="estado_motor",
-                    )
-
-
-                    dpg.add_input_float(
-                        tag="posicion_objetivo",
-                        label="Posición objetivo (mm)",
-                    )
-
-
-                    dpg.add_button(
-                        label="Mover",
-                        callback=self.mover_motor,
-                    )
-
-
-                    dpg.add_separator()
-
-
-                    dpg.add_text("Barrido de voltaje",)
-
-
-                    dpg.add_input_float(
-                        tag="posicion_inicio",
-                        label="Posición inicial (mm)",
-                        default_value=0,
-                    )
-
-
-                    dpg.add_input_float(
-                        tag="posicion_final",
-                        label="Posición final (mm)",
-                        default_value=12,
-                    )
-
-
-                    dpg.add_input_int(
-                        tag="cantidad_puntos",
-                        label="Número de puntos",
-                        default_value=50,
-                    )
-
-
-                    dpg.add_input_float(
-                        tag="tiempo_estabilizacion",
-                        label="Tiempo estabilización (s)",
-                        default_value=0.2,
-                    )
-
-                    dpg.add_text(
-                        "Selecciona un archivo",
-                    )
-
-                    dpg.add_text(
-                        "",
-                        tag="archivo_csv",
-                    )
-
-                    dpg.add_button(label="Abrir selector archivo", callback=lambda: dpg.show_item("file_dialog_id"))
-
-                    def file_picker_callback(sender, file_data):
-                        #print(file_data)
-                        # {'file_path_name': '/home/tetra/ss/refractometro/results/barrido_potenciacsv',
-                        # 'file_name': 'barrido_potenciacsv', 'current_path':
-                        # '/home/tetra/ss/refractometro/results', 'current_filter': '', 'min_size':
-                        # [100.0, 100.0], 'max_size': [30000.0, 30000.0], 'selections': {}}
-
-                        dpg.set_value("archivo_csv", file_data['file_path_name'])
-
-
-                    with dpg.file_dialog(
-                        show=False,
-                        tag="file_dialog_id",
-                        label="Archivo CSV",
-                        default_filename="barrido",
-                        callback=file_picker_callback,
-                        width=700 ,height=400):
-
-                            dpg.add_file_extension(".csv")
-
-                        
-
-                    dpg.add_button(
-                        label="Iniciar barrido",
-                        callback=self.iniciar_barrido,
-                    )
-
-                    dpg.add_button(
-                        label="Calibrar sin muestra",
-                        callback=self.iniciar_calibracion,
-                    )
-
-                    dpg.add_button(
-                        label="Medición corregida",
-                        callback=self.iniciar_medicion_corregida,
-                    )
-
-
-                    dpg.add_text(
-                        "",
-                        tag="resultado_maximo",
-                    )
-
-
-                    with dpg.popup(dpg.last_item(),
-                                mousebutton=dpg.mvMouseButton_Left,
-                                modal=True,
-                                tag="modal_id"):
-                        dpg.add_text("Ingresa un nombre de archivo.")
-                        dpg.add_button(label="Close", callback=lambda: dpg.configure_item("modal_id", show=False))
-
-
-
-            dpg.add_separator()
-
-
-            with dpg.plot(
-                label="Voltaje vs Posición",
-                height=300,
-                width=850,
+        with dpg.file_dialog(
+            show=False,
+            tag="guardar_historial_dialog",
+            label="Guardar corrida",
+            callback=self._file_picker_guardar_historial,
+            width=700,
+            height=400,
+        ):
+            dpg.add_file_extension(".csv")
+
+        with dpg.window(
+            label="Corregir corrida",
+            modal=True,
+            show=False,
+            tag="modal_corregir",
+            width=420,
+            height=180,
+            no_resize=True,
+        ):
+
+            dpg.add_text(
+                "",
+                tag="texto_corregir",
+            )
+
+            dpg.add_text(
+                "Corrida de referencia (blanco, sin muestra):"
+            )
+
+            dpg.add_combo(
+                tag="combo_blanco",
+                items=[],
+                width=-1,
+            )
+
+            with dpg.group(horizontal=True):
+
+                dpg.add_button(
+                    label="Aplicar",
+                    callback=self._aplicar_correccion,
+                )
+
+                dpg.add_button(
+                    label="Cancelar",
+                    callback=lambda: self._cancelar_correccion(),
+                )
+
+        with dpg.window(
+            tag="ventana_principal",
+        ):
+
+            with dpg.group(horizontal=True):
+
+                dpg.add_text("Refractómetro")
+
+                dpg.add_button(
+                    label="Actualizar puertos",
+                    callback=self.actualizar_puertos,
+                )
+
+                info_btn = dpg.add_button(
+                    tag="info_btn",
+                    label="ℹ Ayuda",
+                    callback=lambda: dpg.show_item("modal_info"),
+                )
+
+            with dpg.popup(
+                info_btn,
+                modal=True,
+                tag="modal_info",
             ):
 
-                dpg.add_plot_axis(
-                    dpg.mvXAxis,
-                    label="Posición (mm)",
+                dpg.add_text(
+                    "Cómo usar el refractómetro:\n\n"
+                    "1. Conectar el ESP32 (sensor) eligiendo su puerto\n"
+                    "   y baudrate, luego 'Conectar'.\n"
+                    "2. Conectar el motor Zaber eligiendo su puerto y\n"
+                    "   presionando 'Conectar motor'.\n"
+                    "3. Si los puertos no aparecen en las listas,\n"
+                    "   usar 'Actualizar puertos' (arriba).\n"
+                    "4. Definir Inicio, Final, Puntos y tiempo de\n"
+                    "   Estabilización para el barrido.\n"
+                    "5. '▶ Barrido' mide voltaje vs posición.\n"
+                    "   '⚙ Calibrar' mide una corrida de referencia,\n"
+                    "   por ejemplo con el portamuestras vacío.\n"
+                    "6. Cada corrida queda en el Historial:\n"
+                    "   - la casilla muestra/oculta su curva, para\n"
+                    "     comparar varias mediciones a la vez;\n"
+                    "   - 'Guardar' exporta esa corrida a CSV;\n"
+                    "   - 'Corregir' resta una corrida de referencia\n"
+                    "     (blanco) a la corrida elegida, punto a\n"
+                    "     punto, y agrega el resultado como una nueva\n"
+                    "     curva corregida;\n"
+                    "   - '✕' elimina esa corrida del historial."
                 )
 
-                dpg.add_plot_axis(
-                    dpg.mvYAxis,
-                    label="Voltaje (V)",
-                    tag="voltage_axis",
+                dpg.add_button(
+                    label="Cerrar",
+                    callback=lambda:
+                        dpg.hide_item(
+                            "modal_info"
+                        ),
                 )
 
-                dpg.add_line_series(
-                    [],
-                    [],
-                    parent="voltage_axis",
-                    tag="voltage_curve",
+            with dpg.table(
+                header_row=False,
+                resizable=True,
+                policy=dpg.mvTable_SizingStretchProp,
+            ):
+
+                dpg.add_table_column(
+                    init_width_or_weight=0.28
                 )
 
-                dpg.add_line_series(
-                    [],
-                    [],
-                    label="Calibración",
-                    parent="voltage_axis",
-                    tag="calibration_curve",
+                dpg.add_table_column(
+                    init_width_or_weight=0.72
                 )
 
-                dpg.add_line_series(
-                    [],
-                    [],
-                    label="Corregido",
-                    parent="voltage_axis",
-                    tag="corrected_curve",
-                )
+                with dpg.table_row():
 
+                    with dpg.table_cell():
 
-            dpg.add_button(
-                label="Actualizar puertos",
-                callback=self.actualizar_puertos,
-            )
+                        with dpg.collapsing_header(
+                            label="ESP32",
+                            default_open=True,
+                        ):
 
+                            dpg.add_text(
+                                "● Desconectado",
+                                tag="estado_esp32",
+                            )
 
-            dpg.add_input_text(
-                tag="registro",
-                label="Registro",
-                multiline=True,
-                readonly=True,
-                height=180,
-            )
+                            dpg.add_combo(
+                                tag="puerto_esp32",
+                                label="Puerto",
+                                items=[],
+                                width=-1,
+                            )
 
+                            dpg.add_input_int(
+                                tag="baudrate",
+                                label="Baudrate",
+                                default_value=115200,
+                                width=-1,
+                            )
 
+                            dpg.add_button(
+                                label="Conectar",
+                                callback=self.conectar_esp32,
+                                width=-1,
+                            )
+
+                            dpg.add_separator()
+
+                            dpg.add_text(
+                                "--.-- V",
+                                tag="voltaje_actual",
+                            )
+
+                        with dpg.collapsing_header(
+                            label="Motor Zaber",
+                            default_open=True,
+                        ):
+
+                            dpg.add_text(
+                                "● Desconectado",
+                                tag="estado_motor",
+                            )
+
+                            dpg.add_combo(
+                                tag="puerto_motor",
+                                label="Puerto",
+                                items=[],
+                                width=-1,
+                            )
+
+                            dpg.add_button(
+                                label="Conectar motor",
+                                callback=self.conectar_motor,
+                                width=-1,
+                            )
+
+                            dpg.add_input_float(
+                                tag="posicion_objetivo",
+                                label="Posición objetivo (mm)",
+                                min_value=self.X_AXIS_MIN,
+                                max_value=self.X_AXIS_MAX,
+                                min_clamped=True,
+                                max_clamped=True,
+                                width=-1,
+                            )
+
+                            dpg.add_button(
+                                tag="mover_btn",
+                                label="Mover",
+                                callback=self.mover_motor,
+                                width=-1,
+                            )
+
+                        with dpg.collapsing_header(
+                            label="Barrido",
+                            default_open=True,
+                        ):
+
+                            dpg.add_text("Inicio (mm)")
+
+                            dpg.add_input_float(
+                                tag="posicion_inicio",
+                                default_value=self.X_AXIS_MIN,
+                                min_value=self.X_AXIS_MIN,
+                                max_value=self.X_AXIS_MAX,
+                                min_clamped=True,
+                                max_clamped=True,
+                                width=-1,
+                            )
+
+                            dpg.add_text("Final (mm)")
+
+                            dpg.add_input_float(
+                                tag="posicion_final",
+                                default_value=self.X_AXIS_MAX,
+                                min_value=self.X_AXIS_MIN,
+                                max_value=self.X_AXIS_MAX,
+                                min_clamped=True,
+                                max_clamped=True,
+                                width=-1,
+                            )
+
+                            dpg.add_text("Puntos")
+
+                            dpg.add_input_int(
+                                tag="cantidad_puntos",
+                                default_value=50,
+                                min_value=1,
+                                min_clamped=True,
+                                width=-1,
+                            )
+
+                            dpg.add_text("Estabilización (s)")
+
+                            dpg.add_input_float(
+                                tag="tiempo_estabilizacion",
+                                default_value=0.2,
+                                min_value=0.0,
+                                min_clamped=True,
+                                width=-1,
+                            )
+
+                            dpg.add_button(
+                                tag="barrido_btn",
+                                label="▶ Barrido",
+                                callback=self.iniciar_barrido,
+                                width=-1,
+                            )
+
+                            dpg.add_button(
+                                tag="calibrar_btn",
+                                label="⚙ Calibración",
+                                callback=self.iniciar_calibracion,
+                                width=-1,
+                            )
+
+                            dpg.add_text(
+                                "",
+                                tag="resultado_maximo",
+                            )
+
+                        with dpg.collapsing_header(
+                            label="Historial",
+                            default_open=True,
+                        ):
+
+                            with dpg.child_window(
+                                tag="historial_lista",
+                                height=220,
+                                border=True,
+                            ):
+                                pass
+
+                            dpg.add_button(
+                                label="Limpiar historial",
+                                callback=self.limpiar_historial,
+                                width=-1,
+                            )
+
+                    with dpg.table_cell():
+
+                        with dpg.plot(
+                            label="Voltaje vs Posición",
+                            height=600,
+                            width=-1,
+                        ):
+
+                            dpg.add_plot_legend()
+
+                            dpg.add_plot_axis(
+                                dpg.mvXAxis,
+                                label="Posición (mm)",
+                                tag="position_axis",
+                            )
+
+                            # Las curvas de cada corrida se crean
+                            # dinámicamente en _crear_run/
+                            # _crear_run_calculado — no hay curvas fijas
+                            # acá, así se pueden acumular y comparar
+                            # varias corridas (y sus correcciones) en
+                            # simultáneo.
+                            dpg.add_plot_axis(
+                                dpg.mvYAxis,
+                                label="Voltaje (V)",
+                                tag="voltage_axis",
+                            )
+
+                        with dpg.child_window(
+                            height=170,
+                            border=True,
+                        ):
+
+                            dpg.add_input_text(
+                                tag="registro",
+                                multiline=True,
+                                readonly=True,
+                                width=-1,
+                                height=-1,
+                            )
 
         dpg.setup_dearpygui()
 
         dpg.show_viewport()
-
 
         dpg.set_primary_window(
             "ventana_principal",
             True,
         )
 
+        # Fija el eje horizontal a 0-12mm desde el arranque, en vez de
+        # dejar que autoajuste a un rango vacío (lo que hacía que el
+        # gráfico se viera diminuto antes de la primera medición).
+        dpg.set_axis_limits(
+            "position_axis",
+            self.X_AXIS_MIN,
+            self.X_AXIS_MAX,
+        )
 
         self.actualizar_puertos()
-
 
     def actualizar_curva(
         self,
@@ -586,18 +1206,15 @@ class ControlInterface:
         if not measurements:
             return
 
-
         posiciones = [
             measurement.position_mm
             for measurement in measurements
         ]
 
-
         voltajes = [
             measurement.voltage_v
             for measurement in measurements
         ]
-
 
         dpg.set_value(
             curve_tag,
@@ -607,115 +1224,23 @@ class ControlInterface:
             ],
         )
 
-
-
-    def actualizar_grafica(
-        self,
-        measurements: list[MeasurementPoint],
-    ):
-
-        self.actualizar_curva(
-            "voltage_curve",
-            measurements,
-        )
-
-
-
-    def actualizar_grafica_corregida(
-        self,
-        raw_measurements,
-        corrected_measurements,
-    ):
-
-        self.actualizar_curva(
-            "voltage_curve",
-            raw_measurements,
-        )
-
-
-        self.actualizar_curva(
-            "corrected_curve",
-            corrected_measurements,
-        )
-
-
-        if self.controller.calibration:
-
-            self.actualizar_curva(
-                "calibration_curve",
-                self.controller.calibration.measurements,
-            )
-
-
-    def iniciar_medicion_corregida(
-        self,
-    ):
-
-        try:
-
-            self.controller.start_corrected_measurement(
-
-                start_position_mm=
-                dpg.get_value(
-                    "posicion_inicio"
-                ),
-
-                end_position_mm=
-                dpg.get_value(
-                    "posicion_final"
-                ),
-
-                number_of_points=
-                dpg.get_value(
-                    "cantidad_puntos"
-                ),
-
-                stabilization_time_s=
-                dpg.get_value(
-                    "tiempo_estabilizacion"
-                ),
-
-                on_progress=
-                self.actualizar_barrido,
-
-                on_finished=
-                self.medicion_corregida_finalizada,
-            )
-
-
-            self.log(
-                "[MEDICIÓN] Iniciada"
-            )
-
-
-        except Exception as exc:
-
-            self.log(
-                f"[MEDICIÓN ERROR] {exc}"
-            )
-
-
-    def medicion_corregida_finalizada(
-        self,
-        raw_measurements,
-        corrected_measurements,
-    ):
-
-        self.actualizar_grafica_corregida(
-            raw_measurements,
-            corrected_measurements,
-        )
-
-
-        self.log(
-            "[MEDICIÓN] Finalizada"
-        )
-
-
     def ejecutar(self,):
         while dpg.is_dearpygui_running():
             dpg.render_dearpygui_frame()
 
-
     def cerrar(self,):
+
+        try:
+            self.controller.disconnect_sensor()
+            self.log("[ESP32] Desconectado")
+        except Exception as exc:
+            self.log(f"[ESP32 ERROR] {exc}")
+
+        if hasattr(self.controller, "disconnect_motor"):
+            try:
+                self.controller.disconnect_motor()
+                self.log("[MOTOR] Desconectado")
+            except Exception as exc:
+                self.log(f"[MOTOR ERROR] {exc}")
+
         dpg.destroy_context()
