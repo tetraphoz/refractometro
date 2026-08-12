@@ -974,7 +974,7 @@ class ControlInterface:
 
             self.log("[CALIBRACIÓN] Finalizada")
 
-            self.log(("[CALIBRACIÓN] " f"{len(measurements)} puntos almacenados"))
+            self.log("[CALIBRACIÓN] " f"{len(measurements)} puntos almacenados")
 
         self._active_run = None
         self._set_operation_buttons_enabled(True)

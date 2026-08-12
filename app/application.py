@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import threading
-from typing import Callable
+from collections.abc import Callable
 
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
@@ -97,8 +97,8 @@ class ApplicationController:
         number_of_points: int,
         stabilization_time_s: float,
         csv_filename: str,
-        on_progress: (Callable[[MeasurementPoint], None] | None) = None,
-        on_finished: (Callable[[MeasurementPoint], None] | None) = None,
+        on_progress: Callable[[MeasurementPoint], None] | None = None,
+        on_finished: Callable[[MeasurementPoint], None] | None = None,
     ) -> None:
         if self._running:
             return
