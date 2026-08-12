@@ -383,12 +383,37 @@ class ControlInterface:
         if run is None:
             return
 
+        # show/hide the curve and the peaks markers
         if dpg.does_item_exist(run["curve_tag"]):
             dpg.configure_item(run["curve_tag"], show=value)
 
         peaks_tag = f"peaks_{run['id']}"
         if dpg.does_item_exist(peaks_tag):
             dpg.configure_item(peaks_tag, show=value)
+
+        # Manage tooltip text for peaks: clear when hiding, restore when showing
+        tooltip_tag = f"{peaks_tag}_tooltip_text"
+        if not dpg.does_item_exist(tooltip_tag):
+            return
+
+        try:
+            if not value:
+                # hide/clear tooltip when the series is hidden
+                dpg.set_value(tooltip_tag, "")
+            else:
+                # restore tooltip content from stored peaks if present
+                peaks = (run.get("peaks") if run is not None else []) or []
+                if peaks:
+                    tooltip_lines = [
+                        f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
+                        for idx, p in enumerate(peaks[:10], start=1)
+                    ]
+                    dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
+                else:
+                    dpg.set_value(tooltip_tag, "")
+        except Exception:
+            # best-effort UI update; don't crash on tooltip failures
+            pass
 
     def delete_run(self, run: RunRecord) -> None:
 
