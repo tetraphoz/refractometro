@@ -68,15 +68,15 @@ class ControlInterface:
 
         # Corrida en curso (None si no hay ninguna). Los callbacks de
         # progreso/finalización escriben sobre esta corrida.
-        self._active_run: dict | None = None
+        self._active_run: RunRecord | None = None
 
         # Corrida seleccionada para guardar, mientras el diálogo de
         # guardado está abierto.
-        self._run_a_guardar: dict | None = None
+        self._run_a_guardar: RunRecord | None = None
 
         # Corrida seleccionada para corregir, mientras el modal de
         # selección de blanco está abierto.
-        self._run_a_corregir: dict | None = None
+        self._run_a_corregir: RunRecord | None = None
 
     # Helpers
     def log(
