@@ -304,7 +304,7 @@ class ControlInterface:
             )
             return
 
-        self._eliminar_run(run)
+        self.delete_run(run)
 
     def clear_history(self) -> None:
 
@@ -387,7 +387,7 @@ class ControlInterface:
         label = metadata.get("label") or os.path.splitext(os.path.basename(path))[0]
         kind = "importado"
 
-        nuevo = self._crear_run_calculado(
+        nuevo = self.create_computed_run(
             kind,
             f"Importado: {label}",
             measurements,
@@ -492,7 +492,7 @@ class ControlInterface:
             self.log(f"[CORRECCIÓN ERROR] {exc}")
             return
 
-        nuevo = self._crear_run_calculado(
+        nuevo = self.create_computed_run(
             "corregido",
             f"Corregido #{self._run_counter + 1}: "
             f"{run['label']} − {blanco['label']}",
@@ -693,7 +693,7 @@ class ControlInterface:
 
             dpg.set_value("resultado_maximo", "Midiendo...")
 
-            run = self._crear_run(
+            run = self.create_live_run(
                 "barrido",
                 f"Barrido #{self._run_counter + 1} "
                 f"({cantidad_puntos} pts)",
@@ -744,7 +744,7 @@ class ControlInterface:
                 csv_filename=csv_filename,
 
                 on_progress=
-                self.actualizar_barrido,
+                self.update_sweep,
 
                 on_finished=
                 self.show_peaks,
@@ -757,7 +757,7 @@ class ControlInterface:
             self.log(f"[BARRIDO ERROR] {exc}")
 
             if run is not None:
-                self._eliminar_run(run)
+                self.delete_run(run)
 
             self._active_run = None
             self._set_operation_buttons_enabled(True)
@@ -809,7 +809,7 @@ class ControlInterface:
 
             cantidad_puntos = dpg.get_value("cantidad_puntos")
 
-            run = self._crear_run(
+            run = self.create_live_run(
                 "calibracion",
                 f"Calibración #{self._run_counter + 1} "
                 f"({cantidad_puntos} pts)",
@@ -842,10 +842,10 @@ class ControlInterface:
                 ),
 
                 on_progress=
-                self.actualizar_barrido,
+                self.update_sweep,
 
                 on_finished=
-                self.calibracion_finalizada,
+                self.calibration_finished,
             )
 
             self.log(
@@ -859,7 +859,7 @@ class ControlInterface:
             )
 
             if run is not None:
-                self._eliminar_run(run)
+                self.delete_run(run)
 
             self._active_run = None
             self._set_operation_buttons_enabled(True)
