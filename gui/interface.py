@@ -141,6 +141,16 @@ class ControlInterface:
             tag=curve_tag,
         )
 
+        # create empty scatter series for visualizing peaks for this run
+        peaks_tag = f"peaks_{run_id}"
+        dpg.add_scatter_series(
+            [],
+            [],
+            label=f"{label} peaks",
+            parent="voltage_axis",
+            tag=peaks_tag,
+        )
+
         run = self.register_run(run_id, kind, label, curve_tag)
         run["measurements"] = []
 
@@ -171,6 +181,16 @@ class ControlInterface:
             label=label,
             parent="voltage_axis",
             tag=curve_tag,
+        )
+
+        # create empty scatter series for visualizing peaks for this run
+        peaks_tag = f"peaks_{run_id}"
+        dpg.add_scatter_series(
+            [],
+            [],
+            label=f"{label} peaks",
+            parent="voltage_axis",
+            tag=peaks_tag,
         )
 
         run = self.register_run(run_id, kind, label, curve_tag)
@@ -292,10 +312,19 @@ class ControlInterface:
         if dpg.does_item_exist(run["curve_tag"]):
             dpg.configure_item(run["curve_tag"], show=value)
 
+        peaks_tag = f"peaks_{run['id']}"
+        if dpg.does_item_exist(peaks_tag):
+            dpg.configure_item(peaks_tag, show=value)
+
     def delete_run(self, run: RunRecord) -> None:
 
         if dpg.does_item_exist(run["curve_tag"]):
             dpg.delete_item(run["curve_tag"])
+
+        # remove peaks series if present
+        peaks_tag = f"peaks_{run['id']}"
+        if dpg.does_item_exist(peaks_tag):
+            dpg.delete_item(peaks_tag)
 
         if dpg.does_item_exist(run["row_tag"]):
             dpg.delete_item(run["row_tag"])
@@ -345,6 +374,22 @@ class ControlInterface:
         # Store peaks and primary peak on the run and update UI
         run["peaks"] = peaks
         run["peak"] = peaks[0] if peaks else None
+
+        # update peaks scatter series for this run
+        peaks_tag = f"peaks_{run['id']}"
+        xs = [p.position_mm for p in peaks]
+        ys = [p.voltage_v for p in peaks]
+        if peaks:
+            if dpg.does_item_exist(peaks_tag):
+                dpg.set_value(peaks_tag, [xs, ys])
+                dpg.configure_item(peaks_tag, show=True)
+            else:
+                dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
+        else:
+            # no peaks: clear/hide existing series if any
+            if dpg.does_item_exist(peaks_tag):
+                dpg.set_value(peaks_tag, [[], []])
+                dpg.configure_item(peaks_tag, show=False)
 
         # Update history text and result box (reuse the same presentation as show_peaks)
         self.update_history_text(run)
@@ -967,6 +1012,22 @@ class ControlInterface:
                 # store peaks list and primary peak
                 run["peaks"] = peaks
                 run["peak"] = primary
+                # update peaks scatter series for this run
+                peaks_tag = f"peaks_{run['id']}"
+                xs = [p.position_mm for p in peaks]
+                ys = [p.voltage_v for p in peaks]
+                if peaks:
+                    if dpg.does_item_exist(peaks_tag):
+                        dpg.set_value(peaks_tag, [xs, ys])
+                        dpg.configure_item(peaks_tag, show=True)
+                    else:
+                        dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
+                else:
+                    # no peaks: clear/hide existing series if any
+                    if dpg.does_item_exist(peaks_tag):
+                        dpg.set_value(peaks_tag, [[], []])
+                        dpg.configure_item(peaks_tag, show=False)
+
                 self.update_history_text(run)
                 # enable row buttons now that run finished
                 self._set_run_buttons_enabled(run["id"], True)
