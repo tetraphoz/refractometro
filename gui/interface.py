@@ -265,8 +265,9 @@ class ControlInterface:
         with dpg.child_window(
             tag=run["row_tag"],
             parent="historial_lista",
-            height=90,
             border=False,
+            autosize_y=True,
+            no_scrollbar=True,
         ):
 
             # Top row: checkbox + run label
