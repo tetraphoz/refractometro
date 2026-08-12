@@ -997,12 +997,12 @@ class ControlInterface:
                 f"({cantidad_puntos} pts)",
             )
 
-            run["expected_points"] = cantidad_puntos
+            run.expected_points = cantidad_puntos
 
             # store stabilization time for this calibration run
-            run["stabilization_time_s"] = dpg.get_value("tiempo_estabilizacion")
+            run.stabilization_time_s = dpg.get_value("tiempo_estabilizacion")
 
-            self._set_run_buttons_enabled(run["id"], False)
+            self._set_run_buttons_enabled(run.id, False)
 
             self.controller.start_calibration(
 
