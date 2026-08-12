@@ -17,18 +17,15 @@ class ESP32Sensor:
     def __init__(self):
         self._serial: serial.Serial | None = None
 
-
     @property
     def connected(self) -> bool:
         return self._serial is not None and self._serial.is_open
-
 
     def connect(
         self,
         port: str,
         baud_rate: int = 115200,
     ) -> None:
-
         self._serial = serial.Serial(
             port=port,
             baudrate=baud_rate,
@@ -37,36 +34,18 @@ class ESP32Sensor:
 
         self._serial.reset_input_buffer()
 
-
     def disconnect(self) -> None:
-
         if self._serial:
-
             self._serial.close()
 
         self._serial = None
 
-
     def read_voltage(self) -> float:
-
         if not self.connected:
-            raise RuntimeError(
-                "ESP32 no conectado"
-            )
-
+            raise RuntimeError("ESP32 no conectado")
 
         self._serial.write(b"R")
 
-
-        response = (
-            self._serial
-            .readline()
-            .decode(
-                errors="ignore"
-            )
-            .strip()
-        )
-
+        response = self._serial.readline().decode(errors="ignore").strip()
 
         return float(response)
-

@@ -4,6 +4,7 @@ import bisect
 
 from experiments.voltage_sweep import MeasurementPoint
 
+
 class CalibrationCurve:
     """
     Curva de referencia obtenida sin muestra.
@@ -20,11 +21,8 @@ class CalibrationCurve:
         self,
         measurements: list[MeasurementPoint],
     ):
-
         if not measurements:
-            raise ValueError(
-                "La calibración no contiene mediciones"
-            )
+            raise ValueError("La calibración no contiene mediciones")
 
         self.measurements = sorted(
             measurements,
@@ -35,21 +33,13 @@ class CalibrationCurve:
         self,
         measurements: list[MeasurementPoint],
     ) -> list[MeasurementPoint]:
+        positions = [m.position_mm for m in self.measurements]
 
-        positions = [
-            m.position_mm
-            for m in self.measurements
-        ]
-
-        voltages = [
-            m.voltage_v
-            for m in self.measurements
-        ]
+        voltages = [m.voltage_v for m in self.measurements]
 
         corrected: list[MeasurementPoint] = []
 
         for measurement in measurements:
-
             baseline_voltage = self.interpolate(
                 positions,
                 voltages,
@@ -58,13 +48,8 @@ class CalibrationCurve:
 
             corrected.append(
                 MeasurementPoint(
-                    position_mm=
-                    measurement.position_mm,
-
-                    voltage_v=
-                    measurement.voltage_v
-                    -
-                    baseline_voltage,
+                    position_mm=measurement.position_mm,
+                    voltage_v=measurement.voltage_v - baseline_voltage,
                 )
             )
 
@@ -76,7 +61,6 @@ class CalibrationCurve:
         voltages: list[float],
         x: float,
     ) -> float:
-
         count = len(positions)
 
         if count == 0:
@@ -105,14 +89,6 @@ class CalibrationCurve:
         if x1 == x0:
             return y0
 
-        t = (
-            (x - x0)
-            /
-            (x1 - x0)
-        )
+        t = (x - x0) / (x1 - x0)
 
-        return (
-            y0
-            +
-            t * (y1 - y0)
-        )
+        return y0 + t * (y1 - y0)

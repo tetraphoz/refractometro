@@ -5,12 +5,12 @@ import os
 
 from experiments.voltage_sweep import MeasurementPoint
 
-def save_measurements_csv(
-        filename: str,
-        measurements: list[MeasurementPoint],
-        metadata: dict | None = None,
-) -> None:
 
+def save_measurements_csv(
+    filename: str,
+    measurements: list[MeasurementPoint],
+    metadata: dict | None = None,
+) -> None:
     # Writes optional metadata as commented lines at top,
     # then a header and measurement rows.
     with open(
@@ -19,7 +19,6 @@ def save_measurements_csv(
         newline="",
         encoding="utf-8",
     ) as file:
-
         writer = csv.writer(file)
 
         if metadata:
@@ -43,7 +42,7 @@ def save_measurements_csv(
 
 
 def import_measurements_csv(
-        filename: str,
+    filename: str,
 ) -> tuple[list[MeasurementPoint], dict]:
     """
     Reads a CSV possibly containing commented metadata lines at top
@@ -59,7 +58,6 @@ def import_measurements_csv(
         newline="",
         encoding="utf-8",
     ) as file:
-
         reader = csv.reader(file)
 
         # First read possible metadata comment lines
@@ -85,11 +83,7 @@ def import_measurements_csv(
 
     if not data_rows:
         # empty or only-comment file; provide sensible defaults derived from filename
-        basename = (
-            os.path.splitext(os.path.basename(filename))[0]
-            if filename
-            else ""
-        )
+        basename = os.path.splitext(os.path.basename(filename))[0] if filename else ""
         if not metadata.get("label"):
             metadata["label"] = basename
         metadata.setdefault("kind", "imported")
@@ -100,7 +94,7 @@ def import_measurements_csv(
         return measurements, metadata
 
     # First non-metadata row is expected to be header; find it
-    header = data_rows[0]
+    data_rows[0]
     # Expect header contains "position_mm" and "voltage_v"
     # Remaining rows are numeric data
     for row in data_rows[1:]:
@@ -115,11 +109,7 @@ def import_measurements_csv(
 
     # Provide sensible metadata defaults if missing so callers (GUI) can
     # display a friendly label and useful fields without re-computing them.
-    basename = (
-        os.path.splitext(os.path.basename(filename))[0]
-        if filename
-        else ""
-    )
+    basename = os.path.splitext(os.path.basename(filename))[0] if filename else ""
     if not metadata.get("label"):
         metadata["label"] = basename
     metadata.setdefault("kind", "imported")

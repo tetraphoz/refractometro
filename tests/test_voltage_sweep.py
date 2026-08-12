@@ -1,6 +1,4 @@
-import pytest
-
-from experiments.voltage_sweep import VoltageSweep, MeasurementPoint
+from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
 
 
 def test_find_peaks_empty():

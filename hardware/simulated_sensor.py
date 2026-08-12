@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import random
 import math
+import random
 
 
 class SimulatedESP32Sensor:
@@ -14,72 +14,38 @@ class SimulatedESP32Sensor:
     útil para probar barridos.
     """
 
-
     def __init__(
         self,
         motor,
     ):
-
         self.motor = motor
         self.connected = False
-
-
 
     def connect(
         self,
         port="SIM",
         baud_rate=115200,
     ):
-
         self.connected = True
 
-
-
     def disconnect(self):
-
         self.connected = False
 
-
-
     def read_voltage(self) -> float:
-
         if not self.connected:
-            raise RuntimeError(
-                "Sensor simulado desconectado"
-            )
-
+            raise RuntimeError("Sensor simulado desconectado")
 
         x = self.motor.position_mm
 
-
         # Pico alrededor de 6 mm
 
-        signal = (
-            2.5
-            *
-            math.exp(
-                -(
-                    (x - 6.0) ** 2
-                )
-                /
-                2
-            )
-        )
-
+        signal = 2.5 * math.exp(-((x - 6.0) ** 2) / 2)
 
         noise = random.uniform(
             -0.03,
             0.03,
         )
 
-
         offset = 0.2
 
-
-        return (
-            offset
-            +
-            signal
-            +
-            noise
-        )
+        return offset + signal + noise

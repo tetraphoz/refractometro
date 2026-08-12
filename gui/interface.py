@@ -7,9 +7,9 @@ from collections import deque
 import dearpygui.dearpygui as dpg
 import serial.tools.list_ports
 
-from storage.csv import save_measurements_csv, import_measurements_csv
-from experiments.voltage_sweep import MeasurementPoint
 from app.models import RunRecord
+from experiments.voltage_sweep import MeasurementPoint
+from storage.csv import import_measurements_csv, save_measurements_csv
 
 
 class ControlInterface:
@@ -42,7 +42,6 @@ class ControlInterface:
         self,
         controller,
     ):
-
         self.controller = controller
 
         # Track device connection state so operation buttons are only enabled
@@ -83,7 +82,6 @@ class ControlInterface:
         self,
         message: str,
     ) -> None:
-
         self._log_lines.append(message)
 
         dpg.set_value(
@@ -238,7 +236,6 @@ class ControlInterface:
         label: str,
         curve_tag: str,
     ) -> RunRecord:
-
         # Create a typed RunRecord (preferred) and store it in history.
         run = RunRecord(
             id=run_id,
@@ -261,9 +258,7 @@ class ControlInterface:
         return run
 
     def add_history_row(self, run: RunRecord) -> None:
-
         with dpg.group(tag=run.row_tag, parent="historial_lista"):
-
             # Top row: checkbox + run label
             with dpg.group(horizontal=True):
                 dpg.add_checkbox(
@@ -324,21 +319,16 @@ class ControlInterface:
             dpg.add_separator()
 
     def update_history_text(self, run: RunRecord) -> None:
-
         texto = run.label
 
         peak = run.peak
         if peak is not None:
-            texto += (
-                f" — pico {peak.voltage_v:.4f}V"
-                f" @ {peak.position_mm:.2f}mm"
-            )
+            texto += f" — pico {peak.voltage_v:.4f}V" f" @ {peak.position_mm:.2f}mm"
 
         if dpg.does_item_exist(run.text_tag):
             dpg.set_value(run.text_tag, texto)
 
     def toggle_run_visibility(self, sender, value, user_data) -> None:
-
         run = self._history_by_id.get(user_data)
 
         if run is None:
@@ -377,7 +367,6 @@ class ControlInterface:
             pass
 
     def delete_run(self, run: RunRecord) -> None:
-
         if dpg.does_item_exist(run.curve_tag):
             dpg.delete_item(run.curve_tag)
 
@@ -395,16 +384,13 @@ class ControlInterface:
             self._history.remove(run)
 
     def on_click_delete_run(self, sender, app_data, user_data) -> None:
-
         run = self._history_by_id.get(user_data)
 
         if run is None:
             return
 
         if self._active_run is run:
-            self.log(
-                "[HISTORIAL] No se puede eliminar una corrida en curso"
-            )
+            self.log("[HISTORIAL] No se puede eliminar una corrida en curso")
             return
 
         self.delete_run(run)
@@ -482,10 +468,22 @@ class ControlInterface:
                 except Exception:
                     pass
                 if peaks:
-                    dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
+                    dpg.add_scatter_series(
+                        xs,
+                        ys,
+                        label=f"{run.label} peaks",
+                        parent="voltage_axis",
+                        tag=peaks_tag,
+                    )
         else:
             if peaks:
-                dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
+                dpg.add_scatter_series(
+                    xs,
+                    ys,
+                    label=f"{run.label} peaks",
+                    parent="voltage_axis",
+                    tag=peaks_tag,
+                )
 
         # Update history main label (shows primary peak)
         self.update_history_text(run)
@@ -493,11 +491,9 @@ class ControlInterface:
         self.log(f"[PEAKS] Calculados/mostrados {len(peaks)} picos para {run.label}")
 
     def clear_history(self) -> None:
-
         if self._active_run is not None:
             self.log(
-                "[HISTORIAL] No se puede limpiar mientras hay una "
-                "corrida en curso"
+                "[HISTORIAL] No se puede limpiar mientras hay una " "corrida en curso"
             )
             return
 
@@ -508,7 +504,6 @@ class ControlInterface:
 
     # Guardado individual
     def on_click_save_run(self, sender, app_data, user_data) -> None:
-
         run = self._history_by_id.get(user_data)
 
         if run is None:
@@ -536,7 +531,6 @@ class ControlInterface:
         dpg.show_item("guardar_historial_dialog")
 
     def file_picker_save_history(self, sender, file_data) -> None:
-
         run = self._run_a_guardar
         self._run_a_guardar = None
 
@@ -556,7 +550,6 @@ class ControlInterface:
             self.log(f"[HISTORIAL ERROR] {exc}")
 
     def file_picker_import(self, sender, file_data) -> None:
-
         if not file_data or "file_path_name" not in file_data:
             return
 
@@ -586,7 +579,6 @@ class ControlInterface:
         self.log(f"[IMPORT] {path} importado como {nuevo.label}")
 
     def export_run_csv(self, run: RunRecord, path: str) -> None:
-
         measurements = run.measurements or []
 
         metadata = {
@@ -601,24 +593,19 @@ class ControlInterface:
 
     # Corrección por sustracción de blanco
     def on_click_correct_run(self, sender, app_data, user_data) -> None:
-
         run = self._history_by_id.get(user_data)
 
         if run is None:
             return
 
         if not run.measurements:
-            self.log(
-                "[CORRECCIÓN] Esa corrida todavía no tiene mediciones"
-            )
+            self.log("[CORRECCIÓN] Esa corrida todavía no tiene mediciones")
             return
 
         opciones = [
             r.label
             for r in self._history
-            if r.id != run.id
-            and r is not self._active_run
-            and r.measurements
+            if r.id != run.id and r is not self._active_run and r.measurements
         ]
 
         if not opciones:
@@ -641,12 +628,10 @@ class ControlInterface:
         dpg.show_item("modal_corregir")
 
     def cancel_correction(self) -> None:
-
         self._run_a_corregir = None
         dpg.hide_item("modal_corregir")
 
     def apply_correction(self, sender, app_data) -> None:
-
         run = self._run_a_corregir
         self._run_a_corregir = None
 
@@ -664,8 +649,7 @@ class ControlInterface:
 
         if blanco is None:
             self.log(
-                "[CORRECCIÓN ERROR] No se encontró la corrida de "
-                "referencia elegida"
+                "[CORRECCIÓN ERROR] No se encontró la corrida de " "referencia elegida"
             )
             return
 
@@ -704,9 +688,7 @@ class ControlInterface:
         )
 
         if not measurements or not referencia:
-            raise ValueError(
-                "Ambas corridas necesitan mediciones para poder restar"
-            )
+            raise ValueError("Ambas corridas necesitan mediciones para poder restar")
 
         posiciones_ref = [m.position_mm for m in referencia]
         voltajes_ref = [m.voltage_v for m in referencia]
@@ -714,7 +696,6 @@ class ControlInterface:
         corregidos = []
 
         for m in measurements:
-
             v_ref = self.interpolate(
                 posiciones_ref,
                 voltajes_ref,
@@ -736,7 +717,6 @@ class ControlInterface:
         voltajes: list[float],
         x: float,
     ) -> float:
-
         n = len(posiciones)
 
         if n == 0:
@@ -766,22 +746,13 @@ class ControlInterface:
     def update_ports(
         self,
     ) -> None:
-
-        ports = [
-            port.device
-            for port
-            in serial.tools.list_ports.comports()
-        ]
+        ports = [port.device for port in serial.tools.list_ports.comports()]
 
         if not ports:
-            ports = [
-                "Sin puertos"
-            ]
+            ports = ["Sin puertos"]
             self.log("[PUERTOS] No se encontraron puertos seriales")
         else:
-            self.log(
-                f"[PUERTOS] Encontrados: {', '.join(ports)}"
-            )
+            self.log(f"[PUERTOS] Encontrados: {', '.join(ports)}")
 
         dpg.configure_item(
             "puerto_esp32",
@@ -795,7 +766,6 @@ class ControlInterface:
 
     # Callbacks ESP32
     def connect_sensor(self):
-
         try:
             self.controller.connect_sensor(
                 dpg.get_value("puerto_esp32"),
@@ -817,11 +787,8 @@ class ControlInterface:
 
     # Callbacks motor
     def connect_motor(self):
-
         try:
-            self.controller.connect_motor(
-                dpg.get_value("puerto_motor")
-            )
+            self.controller.connect_motor(dpg.get_value("puerto_motor"))
 
             dpg.set_value("estado_motor", "Conectado")
             self._motor_connected = True
@@ -839,34 +806,27 @@ class ControlInterface:
     def move_motor(
         self,
     ):
-
         try:
             self._set_operation_buttons_enabled(False)
 
-            self.controller.move_motor(
-                dpg.get_value(
-                    "posicion_objetivo"
-                )
-            )
+            self.controller.move_motor(dpg.get_value("posicion_objetivo"))
 
             self.log("[MOTOR] Movimiento completado")
 
         except Exception as exc:
-
             self.log(f"[MOTOR ERROR] {exc}")
 
         finally:
             self._set_operation_buttons_enabled(True)
 
     # Barrido
-    def start_sweep(self,):
-
+    def start_sweep(
+        self,
+    ):
         cantidad_puntos = dpg.get_value("cantidad_puntos")
 
         if cantidad_puntos < 1:
-            self.log(
-                "[BARRIDO ERROR] La cantidad de puntos debe ser mayor a 0"
-            )
+            self.log("[BARRIDO ERROR] La cantidad de puntos debe ser mayor a 0")
             return
 
         run = None
@@ -878,8 +838,7 @@ class ControlInterface:
 
             run = self.create_live_run(
                 "barrido",
-                f"Barrido #{self._run_counter + 1} "
-                f"({cantidad_puntos} pts)",
+                f"Barrido #{self._run_counter + 1} " f"({cantidad_puntos} pts)",
             )
 
             # start_voltage_sweep guarda a CSV incondicionalmente
@@ -903,37 +862,18 @@ class ControlInterface:
             self._set_run_buttons_enabled(run.id, False)
 
             self.controller.start_voltage_sweep(
-
-                start_position_mm=
-                dpg.get_value(
-                    "posicion_inicio"
-                ),
-
-                end_position_mm=
-                dpg.get_value(
-                    "posicion_final"
-                ),
-
+                start_position_mm=dpg.get_value("posicion_inicio"),
+                end_position_mm=dpg.get_value("posicion_final"),
                 number_of_points=cantidad_puntos,
-
-                stabilization_time_s=
-                dpg.get_value(
-                    "tiempo_estabilizacion"
-                ),
-
+                stabilization_time_s=dpg.get_value("tiempo_estabilizacion"),
                 csv_filename=csv_filename,
-
-                on_progress=
-                self.update_sweep,
-
-                on_finished=
-                self.show_peaks,
+                on_progress=self.update_sweep,
+                on_finished=self.show_peaks,
             )
 
             self.log("[BARRIDO] Iniciado")
 
         except Exception as exc:
-
             self.log(f"[BARRIDO ERROR] {exc}")
 
             if run is not None:
@@ -946,7 +886,6 @@ class ControlInterface:
         self,
         measurements,
     ):
-
         if not measurements:
             return
 
@@ -959,7 +898,6 @@ class ControlInterface:
 
         # dpg.mutex() for thread safety with DearPyGui
         with dpg.mutex():
-
             run.measurements = list(measurements)
 
             dpg.set_value(
@@ -980,8 +918,9 @@ class ControlInterface:
                 if dpg.does_item_exist("barrido_progress"):
                     dpg.set_value("barrido_progress", progress)
 
-    def start_calibration(self,):
-
+    def start_calibration(
+        self,
+    ):
         run = None
 
         try:
@@ -991,8 +930,7 @@ class ControlInterface:
 
             run = self.create_live_run(
                 "calibracion",
-                f"Calibración #{self._run_counter + 1} "
-                f"({cantidad_puntos} pts)",
+                f"Calibración #{self._run_counter + 1} " f"({cantidad_puntos} pts)",
             )
 
             run.expected_points = cantidad_puntos
@@ -1003,40 +941,18 @@ class ControlInterface:
             self._set_run_buttons_enabled(run.id, False)
 
             self.controller.start_calibration(
-
-                start_position_mm=
-                dpg.get_value(
-                    "posicion_inicio"
-                ),
-
-                end_position_mm=
-                dpg.get_value(
-                    "posicion_final"
-                ),
-
+                start_position_mm=dpg.get_value("posicion_inicio"),
+                end_position_mm=dpg.get_value("posicion_final"),
                 number_of_points=cantidad_puntos,
-
-                stabilization_time_s=
-                dpg.get_value(
-                    "tiempo_estabilizacion"
-                ),
-
-                on_progress=
-                self.update_sweep,
-
-                on_finished=
-                self.calibration_finished,
+                stabilization_time_s=dpg.get_value("tiempo_estabilizacion"),
+                on_progress=self.update_sweep,
+                on_finished=self.calibration_finished,
             )
 
-            self.log(
-                "[CALIBRACIÓN] Iniciada"
-            )
+            self.log("[CALIBRACIÓN] Iniciada")
 
         except Exception as exc:
-
-            self.log(
-                f"[CALIBRACIÓN ERROR] {exc}"
-            )
+            self.log(f"[CALIBRACIÓN ERROR] {exc}")
 
             if run is not None:
                 self.delete_run(run)
@@ -1048,9 +964,7 @@ class ControlInterface:
         self,
         measurements,
     ):
-
         with dpg.mutex():
-
             run = self._active_run
 
             if run is not None:
@@ -1058,16 +972,9 @@ class ControlInterface:
                 # enable row buttons once calibration finished
                 self._set_run_buttons_enabled(run.id, True)
 
-            self.log(
-                "[CALIBRACIÓN] Finalizada"
-            )
+            self.log("[CALIBRACIÓN] Finalizada")
 
-            self.log(
-                (
-                    "[CALIBRACIÓN] "
-                    f"{len(measurements)} puntos almacenados"
-                )
-            )
+            self.log(("[CALIBRACIÓN] " f"{len(measurements)} puntos almacenados"))
 
         self._active_run = None
         self._set_operation_buttons_enabled(True)
@@ -1082,7 +989,6 @@ class ControlInterface:
         """
 
         with dpg.mutex():
-
             run = self._active_run
 
             primary = None
@@ -1103,7 +1009,13 @@ class ControlInterface:
                         dpg.set_value(peaks_tag, [xs, ys])
                         dpg.configure_item(peaks_tag, show=True)
                     else:
-                        dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
+                        dpg.add_scatter_series(
+                            xs,
+                            ys,
+                            label=f"{run.label} peaks",
+                            parent="voltage_axis",
+                            tag=peaks_tag,
+                        )
                 else:
                     # no peaks: clear/hide existing series if any
                     if dpg.does_item_exist(peaks_tag):
@@ -1140,7 +1052,6 @@ class ControlInterface:
 
     # Construcción UI
     def build(self):
-
         dpg.create_context()
 
         # self.crear_temas()
@@ -1180,15 +1091,12 @@ class ControlInterface:
             height=180,
             no_resize=True,
         ):
-
             dpg.add_text(
                 "",
                 tag="texto_corregir",
             )
 
-            dpg.add_text(
-                "Corrida de referencia (blanco, sin muestra):"
-            )
+            dpg.add_text("Corrida de referencia (blanco, sin muestra):")
 
             dpg.add_combo(
                 tag="combo_blanco",
@@ -1197,7 +1105,6 @@ class ControlInterface:
             )
 
             with dpg.group(horizontal=True):
-
                 dpg.add_button(
                     label="Aplicar",
                     callback=self.apply_correction,
@@ -1211,9 +1118,7 @@ class ControlInterface:
         with dpg.window(
             tag="ventana_principal",
         ):
-
             with dpg.group(horizontal=True):
-
                 dpg.add_text("Refractómetro")
 
                 dpg.add_button(
@@ -1237,7 +1142,6 @@ class ControlInterface:
                 modal=True,
                 tag="modal_info",
             ):
-
                 dpg.add_text(
                     "Cómo usar el refractómetro:\n\n"
                     "1. Conectar el ESP32 (sensor) eligiendo su puerto\n"
@@ -1264,10 +1168,7 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="Cerrar",
-                    callback=lambda:
-                        dpg.hide_item(
-                            "modal_info"
-                        ),
+                    callback=lambda: dpg.hide_item("modal_info"),
                 )
 
             with dpg.table(
@@ -1275,24 +1176,16 @@ class ControlInterface:
                 resizable=True,
                 policy=dpg.mvTable_SizingStretchProp,
             ):
+                dpg.add_table_column(init_width_or_weight=0.28)
 
-                dpg.add_table_column(
-                    init_width_or_weight=0.28
-                )
-
-                dpg.add_table_column(
-                    init_width_or_weight=0.72
-                )
+                dpg.add_table_column(init_width_or_weight=0.72)
 
                 with dpg.table_row():
-
                     with dpg.table_cell():
-
                         with dpg.collapsing_header(
                             label="ESP32",
                             default_open=True,
                         ):
-
                             dpg.add_text(
                                 "● Desconectado",
                                 tag="estado_esp32",
@@ -1329,7 +1222,6 @@ class ControlInterface:
                             label="Motor Zaber",
                             default_open=True,
                         ):
-
                             dpg.add_text(
                                 "● Desconectado",
                                 tag="estado_motor",
@@ -1369,7 +1261,6 @@ class ControlInterface:
                             label="Barrido",
                             default_open=True,
                         ):
-
                             dpg.add_text("Inicio (mm)")
 
                             dpg.add_input_float(
@@ -1443,7 +1334,6 @@ class ControlInterface:
                             label="Historial",
                             default_open=True,
                         ):
-
                             with dpg.child_window(
                                 tag="historial_lista",
                                 height=220,
@@ -1458,13 +1348,11 @@ class ControlInterface:
                             )
 
                     with dpg.table_cell():
-
                         with dpg.plot(
                             label="Voltaje vs Posición",
                             height=600,
                             width=-1,
                         ):
-
                             dpg.add_plot_legend()
 
                             dpg.add_plot_axis(
@@ -1489,7 +1377,6 @@ class ControlInterface:
                             height=170,
                             border=True,
                         ):
-
                             dpg.add_input_text(
                                 tag="registro",
                                 multiline=True,
@@ -1523,7 +1410,8 @@ class ControlInterface:
             3.0,
         )
 
-        # Initialize operation buttons state (they should be disabled until both devices connect)
+        # Initialize operation buttons state
+        # (they should be disabled until both devices connect)
         self._update_operation_buttons_state()
 
         self.update_ports()
@@ -1533,19 +1421,12 @@ class ControlInterface:
         curve_tag: str,
         measurements: list[MeasurementPoint],
     ):
-
         if not measurements:
             return
 
-        posiciones = [
-            measurement.position_mm
-            for measurement in measurements
-        ]
+        posiciones = [measurement.position_mm for measurement in measurements]
 
-        voltajes = [
-            measurement.voltage_v
-            for measurement in measurements
-        ]
+        voltajes = [measurement.voltage_v for measurement in measurements]
 
         dpg.set_value(
             curve_tag,
@@ -1559,8 +1440,9 @@ class ControlInterface:
         while dpg.is_dearpygui_running():
             dpg.render_dearpygui_frame()
 
-    def close(self,):
-
+    def close(
+        self,
+    ):
         try:
             self.controller.disconnect_sensor()
             self._sensor_connected = False
@@ -1579,4 +1461,3 @@ class ControlInterface:
                 self.log(f"[MOTOR ERROR] {exc}")
 
         dpg.destroy_context()
-

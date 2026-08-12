@@ -9,3 +9,9 @@ dependencies = [
     "pyserial>=3.5",
     "zaber-motion>=10.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+]

@@ -5,16 +5,13 @@ import argparse
 from app.application import ApplicationController
 from gui.interface import ControlInterface
 from hardware.esp32 import ESP32Sensor
-from hardware.zaber import ZaberMotor
 from hardware.simulated_motor import SimulatedMotor
 from hardware.simulated_sensor import SimulatedESP32Sensor
+from hardware.zaber import ZaberMotor
 
 
 def parse_args() -> argparse.Namespace:
-
-    parser = argparse.ArgumentParser(
-        description="Refractómetro"
-    )
+    parser = argparse.ArgumentParser(description="Refractómetro")
 
     parser.add_argument(
         "--test",
@@ -50,7 +47,9 @@ def main() -> None:
     )
 
     # Crear interfaz gráfica
-    interface = ControlInterface(controller=controller,)
+    interface = ControlInterface(
+        controller=controller,
+    )
 
     # Ejecutar aplicación
     interface.build()

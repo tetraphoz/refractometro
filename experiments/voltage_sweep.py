@@ -15,7 +15,6 @@ class MeasurementPoint:
     voltage_v: float
 
 
-
 class VoltageSweep:
     """
     Ejecuta un barrido de posición y voltaje.
@@ -28,17 +27,13 @@ class VoltageSweep:
             Debe implementar read_voltage()
     """
 
-
     def __init__(
         self,
         motor,
         sensor,
     ):
-
         self.motor = motor
         self.sensor = sensor
-
-
 
     def run(
         self,
@@ -46,85 +41,43 @@ class VoltageSweep:
         end_position_mm: float,
         number_of_points: int,
         stabilization_time_s: float,
-        progress_callback: (
-            Callable[
-                [
-                    MeasurementPoint
-                ],
-                None
-            ]
-            | None
-        ) = None,
+        progress_callback: (Callable[[MeasurementPoint], None] | None) = None,
     ) -> list[MeasurementPoint]:
-
-
         if number_of_points < 2:
-            raise ValueError(
-                "Se necesitan al menos dos puntos"
-            )
+            raise ValueError("Se necesitan al menos dos puntos")
 
-
-        step_mm = (
-            end_position_mm
-            -
-            start_position_mm
-        ) / (
-            number_of_points - 1
-        )
-
+        step_mm = (end_position_mm - start_position_mm) / (number_of_points - 1)
 
         results: list[MeasurementPoint] = []
 
-
         for index in range(number_of_points):
-
-            position_mm = (
-                start_position_mm
-                +
-                index * step_mm
-            )
-
+            position_mm = start_position_mm + index * step_mm
 
             self.motor.move_absolute(position_mm)
 
-
             time.sleep(stabilization_time_s)
 
-
-            voltage_v = (
-                self.sensor
-                .read_voltage()
-            )
-
+            voltage_v = self.sensor.read_voltage()
 
             measurement = MeasurementPoint(
                 position_mm=position_mm,
                 voltage_v=voltage_v,
             )
 
-
             results.append(measurement)
-
 
             if progress_callback:
                 progress_callback(results.copy())
 
-
         return results
 
-
-
-    #TODO: Find multiple peaks
+    # TODO: Find multiple peaks
     @staticmethod
     def find_peak(
         measurements: list[MeasurementPoint],
     ) -> MeasurementPoint:
-
         if not measurements:
-            raise ValueError(
-                "No hay mediciones"
-            )
-
+            raise ValueError("No hay mediciones")
 
         return max(
             measurements,
@@ -156,19 +109,26 @@ class VoltageSweep:
             if i == 0:
                 if n == 1:
                     peaks.append(sorted_meas[i])
-                elif v >= sorted_meas[i + 1].voltage_v and v > sorted_meas[i + 1].voltage_v:
+                elif (
+                    v >= sorted_meas[i + 1].voltage_v
+                    and v > sorted_meas[i + 1].voltage_v
+                ):
                     peaks.append(sorted_meas[i])
                 continue
 
             if i == n - 1:
-                if v >= sorted_meas[i - 1].voltage_v and v > sorted_meas[i - 1].voltage_v:
+                if (
+                    v >= sorted_meas[i - 1].voltage_v
+                    and v > sorted_meas[i - 1].voltage_v
+                ):
                     peaks.append(sorted_meas[i])
                 continue
 
             left = sorted_meas[i - 1].voltage_v
             right = sorted_meas[i + 1].voltage_v
 
-            # interior point: local maximum if >= both neighbors and strictly greater than at least one
+            # interior point: local maximum if >= both neighbors
+            # and strictly greater than at least one
             if (v >= left and v >= right) and (v > left or v > right):
                 peaks.append(sorted_meas[i])
 

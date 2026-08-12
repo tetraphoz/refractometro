@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import os
-import math
-import tempfile
-
 import pytest
 
-from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
 from experiments.calibration import CalibrationCurve
-from storage.csv import save_measurements_csv, import_measurements_csv
+from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
+from storage.csv import import_measurements_csv, save_measurements_csv
 
 
 def test_find_peaks_simple():
@@ -40,9 +36,9 @@ def test_calibration_interpolate_and_subtract():
     calib = CalibrationCurve(calib_points)
 
     # Interpolate at the midpoint
-    mid = calib.interpolate([p.position_mm for p in calib_points],
-                            [p.voltage_v for p in calib_points],
-                            5.0)
+    mid = calib.interpolate(
+        [p.position_mm for p in calib_points], [p.voltage_v for p in calib_points], 5.0
+    )
     assert mid == pytest.approx(0.3)
 
     # Subtract baseline from a measurement at 5.0 mm with voltage 1.0 V

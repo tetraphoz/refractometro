@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Any, Dict
 import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -32,9 +32,6 @@ class RunRecord:
     created_at: float = field(default_factory=time.time)
 
     # Mapping-like access for compatibility with existing dict-based code:
-
-
-
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RunRecord":

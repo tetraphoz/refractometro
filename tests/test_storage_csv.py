@@ -1,6 +1,5 @@
 from experiments.voltage_sweep import MeasurementPoint
-from storage.csv import save_measurements_csv, import_measurements_csv
-import os
+from storage.csv import import_measurements_csv, save_measurements_csv
 
 
 def test_save_and_import_with_metadata(tmp_path):
