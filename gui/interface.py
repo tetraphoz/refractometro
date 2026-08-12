@@ -391,6 +391,10 @@ class ControlInterface:
 
         # store the source filename in the run for potential saving suggestions
         nuevo["csv_filename"] = path
+
+        # copy stabilization time (and keep any other useful metadata if present)
+        nuevo["stabilization_time_s"] = metadata.get("stabilization_time_s", "")
+
         self.log(f"[IMPORT] {path} importado como {nuevo['label']}")
 
     def _exportar_run_csv(self, run: dict, path: str) -> None:
@@ -401,6 +405,7 @@ class ControlInterface:
             "kind": run.get("kind", ""),
             "label": run.get("label", ""),
             "id": str(run.get("id", "")),
+            "stabilization_time_s": str(run.get("stabilization_time_s", "") or ""),
         }
 
         # Delegate to storage layer (which will write metadata header)
@@ -704,6 +709,9 @@ class ControlInterface:
             )
             run["csv_filename"] = csv_filename
 
+            # store stabilization time for this run so exports include it
+            run["stabilization_time_s"] = dpg.get_value("tiempo_estabilizacion")
+
             # mark expected points for the run (used for progress)
             run["expected_points"] = cantidad_puntos
 
@@ -804,6 +812,10 @@ class ControlInterface:
             )
 
             run["expected_points"] = cantidad_puntos
+
+            # store stabilization time for this calibration run
+            run["stabilization_time_s"] = dpg.get_value("tiempo_estabilizacion")
+
             self._set_run_buttons_enabled(run["id"], False)
 
             self.controller.start_calibration(
