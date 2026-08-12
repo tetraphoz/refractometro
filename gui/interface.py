@@ -152,7 +152,7 @@ class ControlInterface:
         )
 
         run = self.register_run(run_id, kind, label, curve_tag)
-        run["measurements"] = []
+        run.measurements = []
 
         self._active_run = run
 
@@ -194,7 +194,7 @@ class ControlInterface:
         )
 
         run = self.register_run(run_id, kind, label, curve_tag)
-        run["measurements"] = measurements
+        run.measurements = measurements
 
         # Ensure peaks button is enabled for this precomputed run
         peaks_btn_tag = f"hist_peaks_{run_id}"
@@ -204,8 +204,8 @@ class ControlInterface:
         # Precompute peaks for this computed run and populate the scatter + tooltip
         try:
             peaks = self.controller.sweep.find_peaks(measurements)
-            run["peaks"] = peaks
-            run["peak"] = peaks[0] if peaks else None
+            run.peaks = peaks
+            run.peak = peaks[0] if peaks else None
 
             xs = [p.position_mm for p in peaks]
             ys = [p.voltage_v for p in peaks]
@@ -262,19 +262,19 @@ class ControlInterface:
 
     def add_history_row(self, run: RunRecord) -> None:
 
-        with dpg.group(tag=run["row_tag"], parent="historial_lista"):
+        with dpg.group(tag=run.row_tag, parent="historial_lista"):
 
             # Top row: checkbox + run label
             with dpg.group(horizontal=True):
                 dpg.add_checkbox(
                     default_value=True,
                     callback=self.toggle_run_visibility,
-                    user_data=run["id"],
+                    user_data=run.id,
                 )
 
                 dpg.add_text(
-                    run["label"],
-                    tag=run["texto_tag"],
+                    run.label,
+                    tag=run.text_tag,
                 )
 
             # Peaks summary displayed vertically below the label (one per line)
@@ -319,25 +319,25 @@ class ControlInterface:
                 )
 
             # Ensure peaks button is enabled only if the run already has measurements
-            peaks_tag = f"hist_peaks_{run['id']}"
+            peaks_tag = f"hist_peaks_{run.id}"
             if dpg.does_item_exist(peaks_tag):
-                dpg.configure_item(peaks_tag, enabled=bool(run.get("measurements")))
+                dpg.configure_item(peaks_tag, enabled=bool(run.measurements))
 
             dpg.add_separator()
 
     def update_history_text(self, run: RunRecord) -> None:
 
-        texto = run["label"]
+        texto = run.label
 
-        peak = run.get("peak")
+        peak = run.peak
         if peak is not None:
             texto += (
                 f" — pico {peak.voltage_v:.4f}V"
                 f" @ {peak.position_mm:.2f}mm"
             )
 
-        if dpg.does_item_exist(run["texto_tag"]):
-            dpg.set_value(run["texto_tag"], texto)
+        if dpg.does_item_exist(run.text_tag):
+            dpg.set_value(run.text_tag, texto)
 
     def toggle_run_visibility(self, sender, value, user_data) -> None:
 
@@ -347,10 +347,10 @@ class ControlInterface:
             return
 
         # show/hide the curve and the peaks markers
-        if dpg.does_item_exist(run["curve_tag"]):
-            dpg.configure_item(run["curve_tag"], show=value)
+        if dpg.does_item_exist(run.curve_tag):
+            dpg.configure_item(run.curve_tag, show=value)
 
-        peaks_tag = f"peaks_{run['id']}"
+        peaks_tag = f"peaks_{run.id}"
         if dpg.does_item_exist(peaks_tag):
             dpg.configure_item(peaks_tag, show=value)
 
@@ -365,7 +365,7 @@ class ControlInterface:
                 dpg.set_value(tooltip_tag, "")
             else:
                 # restore tooltip content from stored peaks if present
-                peaks = (run.get("peaks") if run is not None else []) or []
+                peaks = (run.peaks if run is not None else []) or []
                 if peaks:
                     tooltip_lines = [
                         f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
@@ -380,18 +380,18 @@ class ControlInterface:
 
     def delete_run(self, run: RunRecord) -> None:
 
-        if dpg.does_item_exist(run["curve_tag"]):
-            dpg.delete_item(run["curve_tag"])
+        if dpg.does_item_exist(run.curve_tag):
+            dpg.delete_item(run.curve_tag)
 
         # remove peaks series if present
-        peaks_tag = f"peaks_{run['id']}"
+        peaks_tag = f"peaks_{run.id}"
         if dpg.does_item_exist(peaks_tag):
             dpg.delete_item(peaks_tag)
 
-        if dpg.does_item_exist(run["row_tag"]):
-            dpg.delete_item(run["row_tag"])
+        if dpg.does_item_exist(run.row_tag):
+            dpg.delete_item(run.row_tag)
 
-        self._history_by_id.pop(run["id"], None)
+        self._history_by_id.pop(run.id, None)
 
         if run in self._history:
             self._history.remove(run)
@@ -421,8 +421,8 @@ class ControlInterface:
         if run is None:
             return
 
-        peaks_tag = f"peaks_{run['id']}"
-        peaks_label_tag = f"hist_peaks_text_{run['id']}"
+        peaks_tag = f"peaks_{run.id}"
+        peaks_label_tag = f"hist_peaks_text_{run.id}"
 
         # Determine current visibility of the peaks series
         visible = False
@@ -440,25 +440,25 @@ class ControlInterface:
                     dpg.configure_item(peaks_tag, show=False)
                 except Exception:
                     pass
-            self.log(f"[PEAKS] Ocultados picos de {run['label']}")
+            self.log(f"[PEAKS] Ocultados picos de {run.label}")
             return
 
         # show markers: ensure measurements exist
-        measurements = run.get("measurements") or []
+        measurements = run.measurements or []
         if not measurements:
             self.log("[PEAKS] Esa corrida no tiene mediciones para calcular picos")
             return
 
         # Use precomputed peaks if present, otherwise compute them now.
-        peaks = run.get("peaks") or []
+        peaks = run.peaks or []
         if not peaks:
             try:
                 peaks = self.controller.sweep.find_peaks(measurements)
             except Exception as exc:
                 self.log(f"[PEAKS ERROR] {exc}")
                 return
-            run["peaks"] = peaks
-            run["peak"] = peaks[0] if peaks else None
+            run.peaks = peaks
+            run.peak = peaks[0] if peaks else None
 
             # update history label because we just computed peaks
             if dpg.does_item_exist(peaks_label_tag):
@@ -484,7 +484,7 @@ class ControlInterface:
                 except Exception:
                     pass
                 if peaks:
-                    dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
+                    dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
         else:
             if peaks:
                 dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
@@ -523,14 +523,12 @@ class ControlInterface:
         # se usa el mismo nombre como sugerencia acá para no terminar
         # con dos archivos distintos para la misma corrida, a menos que
         # el usuario elija explícitamente otro nombre o carpeta.
-        csv_filename = run.get("csv_filename")
+        csv_filename = run.csv_filename
 
         if csv_filename:
-            nombre_sugerido = os.path.splitext(
-                os.path.basename(csv_filename)
-            )[0]
+            nombre_sugerido = os.path.splitext(os.path.basename(csv_filename))[0]
         else:
-            nombre_sugerido = f"{run['kind']}_{run['id']}"
+            nombre_sugerido = f"{run.kind}_{run.id}"
 
         dpg.configure_item(
             "guardar_historial_dialog",
@@ -582,22 +580,22 @@ class ControlInterface:
         )
 
         # store the source filename in the run for potential saving suggestions
-        nuevo["csv_filename"] = path
+        nuevo.csv_filename = path
 
         # copy stabilization time (and keep any other useful metadata if present)
-        nuevo["stabilization_time_s"] = metadata.get("stabilization_time_s", "")
+        nuevo.stabilization_time_s = metadata.get("stabilization_time_s", "")
 
-        self.log(f"[IMPORT] {path} importado como {nuevo['label']}")
+        self.log(f"[IMPORT] {path} importado como {nuevo.label}")
 
     def export_run_csv(self, run: RunRecord, path: str) -> None:
 
-        measurements = run.get("measurements") or []
+        measurements = run.measurements or []
 
         metadata = {
-            "kind": run.get("kind", ""),
-            "label": run.get("label", ""),
-            "id": str(run.get("id", "")),
-            "stabilization_time_s": str(run.get("stabilization_time_s", "") or ""),
+            "kind": getattr(run, "kind", ""),
+            "label": getattr(run, "label", ""),
+            "id": str(getattr(run, "id", "")),
+            "stabilization_time_s": str(getattr(run, "stabilization_time_s", "") or ""),
         }
 
         # Delegate to storage layer (which will write metadata header)
@@ -611,18 +609,18 @@ class ControlInterface:
         if run is None:
             return
 
-        if not run.get("measurements"):
+        if not run.measurements:
             self.log(
                 "[CORRECCIÓN] Esa corrida todavía no tiene mediciones"
             )
             return
 
         opciones = [
-            r["label"]
+            r.label
             for r in self._history
-            if r["id"] != run["id"]
+            if r.id != run.id
             and r is not self._active_run
-            and r.get("measurements")
+            and r.measurements
         ]
 
         if not opciones:
@@ -639,7 +637,7 @@ class ControlInterface:
 
         dpg.set_value(
             "texto_corregir",
-            f"Corrida a corregir: {run['label']}",
+            f"Corrida a corregir: {run.label}",
         )
 
         dpg.show_item("modal_corregir")
@@ -662,7 +660,7 @@ class ControlInterface:
         etiqueta_blanco = dpg.get_value("combo_blanco")
 
         blanco = next(
-            (r for r in self._history if r["label"] == etiqueta_blanco),
+            (r for r in self._history if r.label == etiqueta_blanco),
             None,
         )
 
@@ -682,12 +680,11 @@ class ControlInterface:
 
         nuevo = self.create_computed_run(
             "corregido",
-            f"Corregido #{self._run_counter + 1}: "
-            f"{run['label']} − {blanco['label']}",
+            f"Corregido #{self._run_counter + 1}: {run.label} − {blanco.label}",
             corregidos,
         )
 
-        self.log(f"[CORRECCIÓN] {nuevo['label']} calculado")
+        self.log(f"[CORRECCIÓN] {nuevo.label} calculado")
 
     def subtract_reference(
         self,
@@ -702,9 +699,9 @@ class ControlInterface:
         posición de la corrida real.
         """
 
-        measurements = run.get("measurements") or []
+        measurements = run.measurements or []
         referencia = sorted(
-            blanco.get("measurements") or [],
+            blanco.measurements or [],
             key=lambda m: m.position_mm,
         )
 
@@ -895,20 +892,17 @@ class ControlInterface:
             # de terminar con dos archivos distintos para la misma
             # corrida.
             os.makedirs(self.RUNS_DIR, exist_ok=True)
-            csv_filename = os.path.join(
-                self.RUNS_DIR,
-                f"barrido_{run['id']}.csv",
-            )
-            run["csv_filename"] = csv_filename
+            csv_filename = os.path.join(self.RUNS_DIR, f"barrido_{run.id}.csv")
+            run.csv_filename = csv_filename
 
             # store stabilization time for this run so exports include it
-            run["stabilization_time_s"] = dpg.get_value("tiempo_estabilizacion")
+            run.stabilization_time_s = dpg.get_value("tiempo_estabilizacion")
 
             # mark expected points for the run (used for progress)
-            run["expected_points"] = cantidad_puntos
+            run.expected_points = cantidad_puntos
 
             # disable row buttons while run is active
-            self._set_run_buttons_enabled(run["id"], False)
+            self._set_run_buttons_enabled(run.id, False)
 
             self.controller.start_voltage_sweep(
 
@@ -968,7 +962,7 @@ class ControlInterface:
         # dpg.mutex() for thread safety with DearPyGui
         with dpg.mutex():
 
-            run["measurements"] = list(measurements)
+            run.measurements = list(measurements)
 
             dpg.set_value(
                 "voltaje_actual",
@@ -977,12 +971,12 @@ class ControlInterface:
 
             # update curve
             self.actualizar_curva(
-                run["curve_tag"],
+                run.curve_tag,
                 measurements,
             )
 
             # update progress bar
-            expected = run.get("expected_points") or len(measurements)
+            expected = run.expected_points or len(measurements)
             if expected:
                 progress = min(1.0, len(measurements) / expected)
                 if dpg.does_item_exist("barrido_progress"):
@@ -1062,9 +1056,9 @@ class ControlInterface:
             run = self._active_run
 
             if run is not None:
-                run["measurements"] = list(measurements)
+                run.measurements = list(measurements)
                 # enable row buttons once calibration finished
-                self._set_run_buttons_enabled(run["id"], True)
+                self._set_run_buttons_enabled(run.id, True)
 
             self.log(
                 "[CALIBRACIÓN] Finalizada"
@@ -1100,10 +1094,10 @@ class ControlInterface:
 
             if run is not None:
                 # store peaks list and primary peak
-                run["peaks"] = peaks
-                run["peak"] = primary
+                run.peaks = peaks
+                run.peak = primary
                 # update peaks scatter series for this run
-                peaks_tag = f"peaks_{run['id']}"
+                peaks_tag = f"peaks_{run.id}"
                 xs = [p.position_mm for p in peaks]
                 ys = [p.voltage_v for p in peaks]
                 if peaks:
@@ -1111,7 +1105,7 @@ class ControlInterface:
                         dpg.set_value(peaks_tag, [xs, ys])
                         dpg.configure_item(peaks_tag, show=True)
                     else:
-                        dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
+                        dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
                 else:
                     # no peaks: clear/hide existing series if any
                     if dpg.does_item_exist(peaks_tag):
@@ -1119,7 +1113,7 @@ class ControlInterface:
                         dpg.configure_item(peaks_tag, show=False)
 
                 # update history peaks label for this run
-                peaks_label_tag = f"hist_peaks_text_{run['id']}"
+                peaks_label_tag = f"hist_peaks_text_{run.id}"
                 if dpg.does_item_exist(peaks_label_tag):
                     if peaks:
                         summary = "\n".join(
@@ -1132,7 +1126,7 @@ class ControlInterface:
 
                 self.update_history_text(run)
                 # enable row buttons now that run finished
-                self._set_run_buttons_enabled(run["id"], True)
+                self._set_run_buttons_enabled(run.id, True)
 
             # Clear the big result box — per-run labels hold peak summaries now.
             dpg.set_value("resultado_maximo", "")

@@ -32,81 +32,9 @@ class RunRecord:
     created_at: float = field(default_factory=time.time)
 
     # Mapping-like access for compatibility with existing dict-based code:
-    def __getitem__(self, key: str) -> Any:
-        mapping = {
-            "id": self.id,
-            "kind": self.kind,
-            "label": self.label,
-            "curve_tag": self.curve_tag,
-            "measurements": self.measurements,
-            "peak": self.peak,
-            "peaks": self.peaks,
-            "csv_filename": self.csv_filename,
-            "row_tag": self.row_tag,
-            "texto_tag": self.text_tag,  # compatibility key
-            "text_tag": self.text_tag,
-            "expected_points": self.expected_points,
-            "stabilization_time_s": self.stabilization_time_s,
-        }
-        return mapping.get(key)
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        if key == "id":
-            self.id = value
-        elif key == "kind":
-            self.kind = value
-        elif key == "label":
-            self.label = value
-        elif key == "curve_tag":
-            self.curve_tag = value
-        elif key == "measurements":
-            self.measurements = value
-        elif key == "peak":
-            self.peak = value
-        elif key == "peaks":
-            self.peaks = value
-        elif key == "csv_filename":
-            self.csv_filename = value
-        elif key == "row_tag":
-            self.row_tag = value
-        elif key in ("texto_tag", "text_tag"):
-            self.text_tag = value
-        elif key == "expected_points":
-            self.expected_points = value
-        elif key == "stabilization_time_s":
-            self.stabilization_time_s = value
-        else:
-            setattr(self, key, value)
 
-    def get(self, key: str, default: Any = None) -> Any:
-        """
-        Dict-like .get() for backward compatibility.
 
-        Return the actual attribute values (not a serialised dict), so code
-        expecting MeasurementPoint objects (e.g. peak.voltage_v) continues to work.
-        """
-        mapping = {
-            "id": self.id,
-            "kind": self.kind,
-            "label": self.label,
-            "curve_tag": self.curve_tag,
-            "measurements": self.measurements,
-            "peak": self.peak,
-            "peaks": self.peaks,
-            "csv_filename": self.csv_filename,
-            "row_tag": self.row_tag,
-            "texto_tag": self.text_tag,
-            "text_tag": self.text_tag,
-            "expected_points": self.expected_points,
-            "stabilization_time_s": self.stabilization_time_s,
-        }
-        return mapping.get(key, default)
-
-    def to_dict(self) -> Dict[str, Any]:
-        d = asdict(self)
-        # include legacy key name expected by existing code
-        d["texto_tag"] = d.get("text_tag") or d.get("text_tag")
-        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RunRecord":
