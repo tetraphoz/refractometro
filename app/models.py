@@ -80,10 +80,27 @@ class RunRecord:
 
     def get(self, key: str, default: Any = None) -> Any:
         """
-        Dict-like .get() for backward compatibility with code that still
-        treats RunRecord as a mapping.
+        Dict-like .get() for backward compatibility.
+
+        Return the actual attribute values (not a serialised dict), so code
+        expecting MeasurementPoint objects (e.g. peak.voltage_v) continues to work.
         """
-        return self.to_dict().get(key, default)
+        mapping = {
+            "id": self.id,
+            "kind": self.kind,
+            "label": self.label,
+            "curve_tag": self.curve_tag,
+            "measurements": self.measurements,
+            "peak": self.peak,
+            "peaks": self.peaks,
+            "csv_filename": self.csv_filename,
+            "row_tag": self.row_tag,
+            "texto_tag": self.text_tag,
+            "text_tag": self.text_tag,
+            "expected_points": self.expected_points,
+            "stabilization_time_s": self.stabilization_time_s,
+        }
+        return mapping.get(key, default)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
