@@ -143,9 +143,11 @@ class ApplicationController:
                 try:
                     # motor may or may not be connected; ignore failures.
                     self.motor.move_absolute(start_position_mm)
-                except (OSError, RuntimeError) as exc:
+                except (OSError, RuntimeError):
                     # Best-effort: log failure to return motor to initial position for debugging.
-                    logging.debug("Failed to return motor to initial position", exc_info=True)
+                    logging.debug(
+                        "Failed to return motor to initial position", exc_info=True
+                    )
                 self._running = False
 
         self._sweep_thread = threading.Thread(
