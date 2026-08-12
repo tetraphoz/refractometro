@@ -998,12 +998,12 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="Aplicar",
-                    callback=self._aplicar_correccion,
+                    callback=self.apply_correction,
                 )
 
                 dpg.add_button(
                     label="Cancelar",
-                    callback=lambda: self._cancelar_correccion(),
+                    callback=lambda: self.cancel_correction(),
                 )
 
         with dpg.window(
@@ -1378,42 +1378,3 @@ class ControlInterface:
 
         dpg.destroy_context()
 
-    # ---------------------------
-    # English API aliases (non-breaking)
-    # ---------------------------
-    # Prefer these English names in new code. Spanish names remain as wrappers.
-    build = construir
-    run = ejecutar
-    close = cerrar
-    connect_sensor = conectar_esp32
-    connect_motor = conectar_motor
-    move_motor = mover_motor
-    start_sweep = iniciar_barrido
-    update_sweep = actualizar_barrido
-    start_calibration = iniciar_calibracion
-    calibration_finished = calibracion_finalizada
-    show_peaks = show_peaks  # already English; keep the reference
-    show_peak = mostrar_pico  # compatibility wrapper exists
-    create_live_run = _crear_run
-    create_computed_run = _crear_run_calculado
-    register_run = _registrar_run
-    add_history_row = _agregar_fila_historial
-    update_history_text = _actualizar_texto_historial
-    toggle_run_visibility = _alternar_visibilidad_run
-    delete_run = _eliminar_run
-    on_click_delete_run = _click_eliminar_run
-    clear_history = limpiar_historial
-    on_click_save_run = _click_guardar_run
-    file_picker_save_history = _file_picker_guardar_historial
-    file_picker_import = _file_picker_import
-    export_run_csv = _exportar_run_csv
-    on_click_correct_run = _click_corregir_run
-    cancel_correction = _cancelar_correccion
-    apply_correction = _aplicar_correccion
-    subtract_reference = _restar_blanco
-    interpolate = _interpolar
-    update_ports = actualizar_puertos
-    set_operation_buttons_enabled = _set_operation_buttons_enabled
-    set_run_buttons_enabled = _set_run_buttons_enabled
-    update_operation_buttons_state = _update_operation_buttons_state
-    # end aliases
