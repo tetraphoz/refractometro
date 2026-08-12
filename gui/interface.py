@@ -97,7 +97,7 @@ class ControlInterface:
                 dpg.configure_item(tag, enabled=enabled)
 
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
-        # Configure the buttons of a history row, including the "Peaks" button.
+        # Configure the buttons of a history row (do not touch peak labels here).
         tags = [
             f"hist_guardar_{run_id}",
             f"hist_corregir_{run_id}",
@@ -107,40 +107,6 @@ class ControlInterface:
         for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
-
-        # Manage the peaks tooltip text: when the row is disabled, hide tooltip text
-        # so hovering the scatter doesn't show stale information. When re-enabling,
-        # restore tooltip text from stored peaks (if any).
-        tooltip_tag = f"peaks_{run_id}_tooltip_text"
-        if not dpg.does_item_exist(tooltip_tag):
-            return
-
-        if not enabled:
-            # hide tooltip content (best-effort)
-            try:
-                dpg.set_value(tooltip_tag, "")
-            except Exception:
-                pass
-            return
-
-        # enabled == True -> restore tooltip content from run peaks if present
-        run = self._history_by_id.get(run_id)
-        peaks = (run.get("peaks") if run is not None else []) or []
-        if peaks:
-            tooltip_lines = [
-                f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
-                for idx, p in enumerate(peaks[:10], start=1)
-            ]
-            try:
-                dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
-            except Exception:
-                # ignore UI failures
-                pass
-        else:
-            try:
-                dpg.set_value(tooltip_tag, "")
-            except Exception:
-                pass
 
     def _update_operation_buttons_state(self) -> None:
         """
@@ -185,10 +151,6 @@ class ControlInterface:
             tag=peaks_tag,
         )
 
-        # add a tooltip text item for the peaks series (updated when peaks change)
-        with dpg.tooltip(peaks_tag):
-            dpg.add_text("", tag=f"{peaks_tag}_tooltip_text")
-
         run = self.register_run(run_id, kind, label, curve_tag)
         run["measurements"] = []
 
@@ -231,10 +193,6 @@ class ControlInterface:
             tag=peaks_tag,
         )
 
-        # add a tooltip text item for the peaks series (updated when peaks change)
-        with dpg.tooltip(peaks_tag):
-            dpg.add_text("", tag=f"{peaks_tag}_tooltip_text")
-
         run = self.register_run(run_id, kind, label, curve_tag)
         run["measurements"] = measurements
 
@@ -256,16 +214,17 @@ class ControlInterface:
                 dpg.set_value(peaks_tag, [xs, ys])
                 dpg.configure_item(peaks_tag, show=bool(peaks))
 
-            tooltip_tag = f"{peaks_tag}_tooltip_text"
-            if dpg.does_item_exist(tooltip_tag):
+            # update history peaks label for this run
+            peaks_label_tag = f"hist_peaks_text_{run_id}"
+            if dpg.does_item_exist(peaks_label_tag):
                 if peaks:
-                    tooltip_lines = [
-                        f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
-                        for idx, p in enumerate(peaks[:10], start=1)
-                    ]
-                    dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
+                    summary = "; ".join(
+                        f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                        for idx, p in enumerate(peaks[:5], start=1)
+                    )
+                    dpg.set_value(peaks_label_tag, summary)
                 else:
-                    dpg.set_value(tooltip_tag, "No se encontraron picos.")
+                    dpg.set_value(peaks_label_tag, "")
         except Exception:
             # best-effort: don't break UI if peak finding fails
             pass
@@ -319,6 +278,11 @@ class ControlInterface:
                 dpg.add_text(
                     run["label"],
                     tag=run["texto_tag"],
+                )
+
+                dpg.add_text(
+                    "",
+                    tag=f"hist_peaks_text_{run['id']}",
                 )
 
             with dpg.group(horizontal=True):
@@ -420,19 +384,10 @@ class ControlInterface:
         if dpg.does_item_exist(run["curve_tag"]):
             dpg.delete_item(run["curve_tag"])
 
-        # remove peaks series if present (and its tooltip text item)
+        # remove peaks series if present
         peaks_tag = f"peaks_{run['id']}"
         if dpg.does_item_exist(peaks_tag):
             dpg.delete_item(peaks_tag)
-
-        tooltip_tag = f"{peaks_tag}_tooltip_text"
-        if dpg.does_item_exist(tooltip_tag):
-            try:
-                dpg.delete_item(tooltip_tag)
-            except Exception:
-                # some versions of DearPyGui may not allow deleting tooltip children directly;
-                # ignore failures to avoid crashing the UI.
-                pass
 
         if dpg.does_item_exist(run["row_tag"]):
             dpg.delete_item(run["row_tag"])
@@ -1192,44 +1147,24 @@ class ControlInterface:
                         dpg.set_value(peaks_tag, [[], []])
                         dpg.configure_item(peaks_tag, show=False)
 
-                # update tooltip text for peaks series (create tooltip item on-demand)
-                tooltip_tag = f"{peaks_tag}_tooltip_text"
-
-                if not dpg.does_item_exist(tooltip_tag):
-                    try:
-                        with dpg.tooltip(peaks_tag):
-                            dpg.add_text("", tag=tooltip_tag)
-                    except Exception:
-                        pass
-
-                if dpg.does_item_exist(tooltip_tag):
+                # update history peaks label for this run
+                peaks_label_tag = f"hist_peaks_text_{run['id']}"
+                if dpg.does_item_exist(peaks_label_tag):
                     if peaks:
-                        tooltip_lines = [
-                            f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
-                            for idx, p in enumerate(peaks[:10], start=1)
-                        ]
-                        try:
-                            dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
-                        except Exception:
-                            pass
+                        summary = "; ".join(
+                            f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                            for idx, p in enumerate(peaks[:5], start=1)
+                        )
+                        dpg.set_value(peaks_label_tag, summary)
                     else:
-                        try:
-                            dpg.set_value(tooltip_tag, "No se encontraron picos.")
-                        except Exception:
-                            pass
+                        dpg.set_value(peaks_label_tag, "")
 
                 self.update_history_text(run)
                 # enable row buttons now that run finished
                 self._set_run_buttons_enabled(run["id"], True)
 
-            if not peaks:
-                dpg.set_value("resultado_maximo", "No se encontraron picos.")
-            else:
-                # Show top N peaks (up to 5) in result box
-                lines = ["Picos encontrados:"]
-                for idx, p in enumerate(peaks[:5], start=1):
-                    lines.append(f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm")
-                dpg.set_value("resultado_maximo", "\n".join(lines))
+            # Clear the big result box — per-run labels hold peak summaries now.
+            dpg.set_value("resultado_maximo", "")
 
             self.log("[BARRIDO] Finalizado")
 
