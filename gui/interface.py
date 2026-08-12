@@ -97,11 +97,12 @@ class ControlInterface:
                 dpg.configure_item(tag, enabled=enabled)
 
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
-        # Configure the three buttons of a history row
+        # Configure the buttons of a history row, including the new "Peaks" button.
         tags = [
             f"hist_guardar_{run_id}",
             f"hist_corregir_{run_id}",
             f"hist_eliminar_{run_id}",
+            f"hist_peaks_{run_id}",  # new peaks button
         ]
         for tag in tags:
             if dpg.does_item_exist(tag):
@@ -245,12 +246,25 @@ class ControlInterface:
                 )
 
                 dpg.add_button(
+                    label="Picos",
+                    tag=f"hist_peaks_{run['id']}",
+                    callback=self.on_click_peaks,
+                    user_data=run["id"],
+                    width=60,
+                )
+
+                dpg.add_button(
                     label="✕",
                     tag=f"hist_eliminar_{run['id']}",
                     callback=self.on_click_delete_run,
                     user_data=run["id"],
                     width=30,
                 )
+
+            # Ensure peaks button is enabled only if the run already has measurements
+            peaks_tag = f"hist_peaks_{run['id']}"
+            if dpg.does_item_exist(peaks_tag):
+                dpg.configure_item(peaks_tag, enabled=bool(run.get("measurements")))
 
             dpg.add_separator()
 
@@ -305,6 +319,45 @@ class ControlInterface:
             return
 
         self.delete_run(run)
+
+    def on_click_peaks(self, sender, app_data, user_data) -> None:
+        """
+        Compute/show peaks for the selected run (useful for corrected/imported runs).
+        """
+
+        run = self._history_by_id.get(user_data)
+        if run is None:
+            return
+
+        measurements = run.get("measurements") or []
+        if not measurements:
+            self.log("[PIOS] Esa corrida no tiene mediciones para calcular picos")
+            dpg.set_value("resultado_maximo", "No hay mediciones para calcular picos.")
+            return
+
+        # Compute peaks using the sweep's finder (VoltageSweep.find_peaks)
+        try:
+            peaks = self.controller.sweep.find_peaks(measurements)
+        except Exception as exc:
+            self.log(f"[PIOS ERROR] {exc}")
+            return
+
+        # Store peaks and primary peak on the run and update UI
+        run["peaks"] = peaks
+        run["peak"] = peaks[0] if peaks else None
+
+        # Update history text and result box (reuse the same presentation as show_peaks)
+        self.update_history_text(run)
+
+        if not peaks:
+            dpg.set_value("resultado_maximo", "No se encontraron picos.")
+        else:
+            lines = ["Picos (locales):"]
+            for idx, p in enumerate(peaks[:5], start=1):
+                lines.append(f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm")
+            dpg.set_value("resultado_maximo", "\n".join(lines))
+
+        self.log(f"[PEAKS] Calculados {len(peaks)} picos para {run['label']}")
 
     def clear_history(self) -> None:
 
