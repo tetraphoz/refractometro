@@ -130,3 +130,45 @@ class VoltageSweep:
             measurements,
             key=lambda item: item.voltage_v,
         )
+
+    @staticmethod
+    def find_peaks(
+        measurements: list[MeasurementPoint],
+    ) -> list[MeasurementPoint]:
+        """
+        Find local maxima (simple 3-point neighborhood test).
+        Returns peaks sorted by voltage_v descending.
+        """
+
+        if not measurements:
+            return []
+
+        # Sort by position to ensure neighbor order
+        sorted_meas = sorted(measurements, key=lambda m: m.position_mm)
+        n = len(sorted_meas)
+
+        peaks: list[MeasurementPoint] = []
+
+        for i in range(n):
+            v = sorted_meas[i].voltage_v
+
+            # endpoints: compare with the single neighbor
+            if i == 0:
+                if n > 1 and v > sorted_meas[i + 1].voltage_v:
+                    peaks.append(sorted_meas[i])
+                elif n == 1:
+                    peaks.append(sorted_meas[i])
+                continue
+
+            if i == n - 1:
+                if v > sorted_meas[i - 1].voltage_v:
+                    peaks.append(sorted_meas[i])
+                continue
+
+            # interior point: local maximum if greater than both neighbors
+            if v > sorted_meas[i - 1].voltage_v and v > sorted_meas[i + 1].voltage_v:
+                peaks.append(sorted_meas[i])
+
+        # sort peaks by voltage descending
+        peaks.sort(key=lambda m: m.voltage_v, reverse=True)
+        return peaks

@@ -7,8 +7,11 @@ from experiments.voltage_sweep import MeasurementPoint
 def save_measurements_csv(
         filename: str,
         measurements: list[MeasurementPoint],
+        metadata: dict | None = None,
 ) -> None:
 
+    # Writes optional metadata as commented lines at top,
+    # then a header and measurement rows.
     with open(
         filename,
         "w",
@@ -18,6 +21,10 @@ def save_measurements_csv(
 
         writer = csv.writer(file)
 
+        if metadata:
+            for key, value in metadata.items():
+                writer.writerow([f"# {key}: {value}"])
+
         writer.writerow(
             [
                 "position_mm",
@@ -26,7 +33,6 @@ def save_measurements_csv(
         )
 
         for measurement in measurements:
-
             writer.writerow(
                 [
                     measurement.position_mm,
@@ -37,8 +43,60 @@ def save_measurements_csv(
 
 def import_measurements_csv(
         filename: str,
-        measurements: list[MeasurementPoint],
-) -> None:
+) -> tuple[list[MeasurementPoint], dict]:
+    """
+    Reads a CSV possibly containing commented metadata lines at top
+    (format: "# key: value"). Returns (measurements, metadata).
+    """
 
-    # TODO: Write import csv and implement in gui
-    pass
+    measurements: list[MeasurementPoint] = []
+    metadata: dict = {}
+
+    with open(
+        filename,
+        "r",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+
+        reader = csv.reader(file)
+
+        # First read possible metadata comment lines
+        # (they start with '# ' in our writer).
+        rows = list(reader)
+
+    # Separate metadata lines (starting with '# ') from data.
+    data_rows = []
+    for row in rows:
+        if not row:
+            continue
+        first = row[0]
+        if isinstance(first, str) and first.startswith("#"):
+            # row like ["# key: value"] or ["# key:"," value"]
+            joined = ",".join(row)
+            # remove leading '#'
+            stripped = joined.lstrip("# ").strip()
+            if ":" in stripped:
+                key, val = stripped.split(":", 1)
+                metadata[key.strip()] = val.strip()
+            continue
+        data_rows.append(row)
+
+    if not data_rows:
+        return measurements, metadata
+
+    # First non-metadata row is expected to be header; find it
+    header = data_rows[0]
+    # Expect header contains "position_mm" and "voltage_v"
+    # Remaining rows are numeric data
+    for row in data_rows[1:]:
+        if len(row) < 2:
+            continue
+        try:
+            pos = float(row[0])
+            volt = float(row[1])
+        except Exception:
+            continue
+        measurements.append(MeasurementPoint(position_mm=pos, voltage_v=volt))
+
+    return measurements, metadata

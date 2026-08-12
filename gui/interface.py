@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import bisect
-import csv
 import os
 from collections import deque
 
 import dearpygui.dearpygui as dpg
 import serial.tools.list_ports
 
+from storage.csv import save_measurements_csv, import_measurements_csv
 from experiments.voltage_sweep import MeasurementPoint
 
 
@@ -84,6 +84,17 @@ class ControlInterface:
 
     def _set_operation_buttons_enabled(self, enabled: bool) -> None:
         for tag in self.OPERATION_BUTTONS:
+            if dpg.does_item_exist(tag):
+                dpg.configure_item(tag, enabled=enabled)
+
+    def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
+        # Configure the three buttons of a history row
+        tags = [
+            f"hist_guardar_{run_id}",
+            f"hist_corregir_{run_id}",
+            f"hist_eliminar_{run_id}",
+        ]
+        for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
 
@@ -202,6 +213,7 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="Guardar",
+                    tag=f"hist_guardar_{run['id']}",
                     callback=self._click_guardar_run,
                     user_data=run["id"],
                     width=70,
@@ -209,6 +221,7 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="Corregir",
+                    tag=f"hist_corregir_{run['id']}",
                     callback=self._click_corregir_run,
                     user_data=run["id"],
                     width=70,
@@ -216,6 +229,7 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="✕",
+                    tag=f"hist_eliminar_{run['id']}",
                     callback=self._click_eliminar_run,
                     user_data=run["id"],
                     width=30,
@@ -340,17 +354,44 @@ class ControlInterface:
         except Exception as exc:
             self.log(f"[HISTORIAL ERROR] {exc}")
 
+    def _file_picker_import(self, sender, file_data) -> None:
+
+        if not file_data or "file_path_name" not in file_data:
+            return
+
+        path = file_data["file_path_name"]
+
+        try:
+            measurements, metadata = import_measurements_csv(path)
+        except Exception as exc:
+            self.log(f"[IMPORT ERROR] {exc}")
+            return
+
+        label = metadata.get("label") or os.path.splitext(os.path.basename(path))[0]
+        kind = "importado"
+
+        nuevo = self._crear_run_calculado(
+            kind,
+            f"Importado: {label}",
+            measurements,
+        )
+
+        # store the source filename in the run for potential saving suggestions
+        nuevo["csv_filename"] = path
+        self.log(f"[IMPORT] {path} importado como {nuevo['label']}")
+
     def _exportar_run_csv(self, run: dict, path: str) -> None:
 
         measurements = run.get("measurements") or []
 
-        with open(path, "w", newline="") as f:
+        metadata = {
+            "kind": run.get("kind", ""),
+            "label": run.get("label", ""),
+            "id": str(run.get("id", "")),
+        }
 
-            writer = csv.writer(f)
-            writer.writerow(["position_mm", "voltage_v"])
-
-            for m in measurements:
-                writer.writerow([m.position_mm, m.voltage_v])
+        # Delegate to storage layer (which will write metadata header)
+        save_measurements_csv(path, measurements, metadata=metadata)
 
     # Corrección por sustracción de blanco
     def _click_corregir_run(self, sender, app_data, user_data) -> None:
@@ -655,6 +696,12 @@ class ControlInterface:
             )
             run["csv_filename"] = csv_filename
 
+            # mark expected points for the run (used for progress)
+            run["expected_points"] = cantidad_puntos
+
+            # disable row buttons while run is active
+            self._set_run_buttons_enabled(run["id"], False)
+
             self.controller.start_voltage_sweep(
 
                 start_position_mm=
@@ -710,10 +757,7 @@ class ControlInterface:
 
         latest = measurements[-1]
 
-        # Los callbacks de progreso/finalización pueden llegar desde un
-        # hilo de trabajo (el barrido corre con demoras de estabilización).
-        # dpg.mutex() serializa el acceso al estado de DearPyGui para
-        # evitar carreras con el hilo principal de renderizado.
+        # dpg.mutex() for thread safety with DearPyGui
         with dpg.mutex():
 
             run["measurements"] = list(measurements)
@@ -723,10 +767,18 @@ class ControlInterface:
                 f"{latest.voltage_v:.4f} V",
             )
 
+            # update curve
             self.actualizar_curva(
                 run["curve_tag"],
                 measurements,
             )
+
+            # update progress bar
+            expected = run.get("expected_points") or len(measurements)
+            if expected:
+                progress = min(1.0, len(measurements) / expected)
+                if dpg.does_item_exist("barrido_progress"):
+                    dpg.set_value("barrido_progress", progress)
 
     def iniciar_calibracion(self,):
 
@@ -742,6 +794,9 @@ class ControlInterface:
                 f"Calibración #{self._run_counter + 1} "
                 f"({cantidad_puntos} pts)",
             )
+
+            run["expected_points"] = cantidad_puntos
+            self._set_run_buttons_enabled(run["id"], False)
 
             self.controller.start_calibration(
 
@@ -796,6 +851,8 @@ class ControlInterface:
 
             if run is not None:
                 run["measurements"] = list(measurements)
+                # enable row buttons once calibration finished
+                self._set_run_buttons_enabled(run["id"], True)
 
             self.log(
                 "[CALIBRACIÓN] Finalizada"
@@ -823,6 +880,8 @@ class ControlInterface:
             if run is not None:
                 run["peak"] = peak
                 self._actualizar_texto_historial(run)
+                # enable row buttons now that run finished
+                self._set_run_buttons_enabled(run["id"], True)
 
             dpg.set_value(
                 "resultado_maximo",
@@ -856,6 +915,16 @@ class ControlInterface:
             tag="guardar_historial_dialog",
             label="Guardar corrida",
             callback=self._file_picker_guardar_historial,
+            width=700,
+            height=400,
+        ):
+            dpg.add_file_extension(".csv")
+
+        with dpg.file_dialog(
+            show=False,
+            tag="import_dialog",
+            label="Importar corrida CSV",
+            callback=self._file_picker_import,
             width=700,
             height=400,
         ):
@@ -909,6 +978,11 @@ class ControlInterface:
                 dpg.add_button(
                     label="Actualizar puertos",
                     callback=self.actualizar_puertos,
+                )
+
+                dpg.add_button(
+                    label="Importar CSV",
+                    callback=lambda: dpg.show_item("import_dialog"),
                 )
 
                 info_btn = dpg.add_button(
@@ -1113,6 +1187,12 @@ class ControlInterface:
                                 width=-1,
                             )
 
+                            dpg.add_progress_bar(
+                                default_value=0.0,
+                                tag="barrido_progress",
+                                width=-1,
+                            )
+
                             dpg.add_text(
                                 "",
                                 tag="resultado_maximo",
@@ -1193,6 +1273,13 @@ class ControlInterface:
             "position_axis",
             self.X_AXIS_MIN,
             self.X_AXIS_MAX,
+        )
+
+        # Fix Y axis to 0–3 V
+        dpg.set_axis_limits(
+            "voltage_axis",
+            0.0,
+            3.0,
         )
 
         self.actualizar_puertos()

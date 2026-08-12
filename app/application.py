@@ -177,9 +177,18 @@ class ApplicationController:
                 )
 
 
+                # Save CSV with metadata
+                metadata = {
+                    "start_position_mm": str(start_position_mm),
+                    "end_position_mm": str(end_position_mm),
+                    "number_of_points": str(number_of_points),
+                    "stabilization_time_s": str(stabilization_time_s),
+                }
+
                 save_measurements_csv(
                     csv_filename,
                     measurements,
+                    metadata=metadata,
                 )
 
 
@@ -199,6 +208,13 @@ class ApplicationController:
 
 
             finally:
+
+                # Attempt to return motor to initial position (best-effort).
+                try:
+                    # motor may or may not be connected; ignore failures.
+                    self.motor.move_absolute(start_position_mm)
+                except Exception:
+                    pass
 
                 self._running = False
 
