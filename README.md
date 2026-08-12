@@ -1,76 +1,149 @@
 # Refractómetro
 
-Interfaz gráfica y adquisición de datos para un refractómetro motorizado.
+Aplicación para controlar un refractómetro motorizado y adquirir datos experimentales.
 
-Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar barridos y calibraciones, extraer picos, y guardar e importar resultados en CSV con metadatos.
+El programa permite controlar un motor Zaber, adquirir la señal de un sensor mediante un ESP32, realizar barridos y calibraciones, analizar las mediciones y guardar los resultados para su posterior procesamiento.
 
-## Requisitos
+![interface](./interface.jpg)
 
-- Python 3.13+
-- [Nix](https://nixos.org/) — recomendado para el entorno de desarrollo
-- [uv](https://docs.astral.sh/uv/) — gestión de dependencias y entornos Python
+También incluye un **modo de simulación** que permite utilizar la aplicación sin tener conectado el equipo experimental.
 
-Las dependencias de Python se declaran en `pyproject.toml` y las versiones exactas se registran en `uv.lock`.
+## Descargar y ejecutar
 
-### Dependencias principales
+No es necesario instalar Python, Nix ni las dependencias del proyecto para utilizar el refractómetro.
 
-- `dearpygui >= 2.3.1`
-- `pyserial >= 3.5`
-- `zaber-motion >= 10.0.0`
+Las versiones ejecutables se publican en la sección **Releases** de GitHub.
 
-## Inicio rápido
+### Windows
 
-### Hardware simulado
+1. Descarga `refractometro-windows-x86_64.zip` desde la versión más reciente.
+2. Extrae el contenido del archivo `.zip`.
+3. Abre la carpeta extraída.
+4. Ejecuta `refractometro.exe`.
 
-Es posible ejecutar la aplicación sin dispositivos físicos utilizando hardware simulado.
+### Linux
 
-1. Entrar al entorno de desarrollo:
-
-   ```bash
-   nix develop
-   ```
-
-2. Instalar las dependencias:
+1. Descarga `refractometro-linux-x86_64.tar.gz`.
+2. Extrae el archivo:
 
    ```bash
-   uv sync
+   tar -xzf refractometro-linux-x86_64.tar.gz
+   cd refractometro
    ```
 
-3. Ejecutar la aplicación:
+3. Ejecuta:
 
    ```bash
-   uv run python main.py --test
+   ./refractometro
    ```
 
-En la interfaz puedes:
+Si Linux indica que el archivo no tiene permisos de ejecución:
 
-- Ejecutar un barrido (**Barrido**) o una calibración (**Calibración**).
-- Ver las corridas en el **Historial**.
-- Calcular y mostrar picos por corrida.
+```bash
+chmod +x refractometro
+./refractometro
+```
+
+## Probar sin el refractómetro
+
+La aplicación incluye un modo de simulación que permite explorar la interfaz y ejecutar experimentos sin conectar el ESP32 ni el motor Zaber.
+
+Esto resulta útil para familiarizarse con el programa antes de trabajar con el equipo experimental.
+
+En Linux:
+
+```bash
+./refractometro --test
+```
+
+En Windows:
+
+```bash
+refractometro.exe --test
+```
+
+En el modo de simulación puedes:
+
+- Ejecutar un Barrido.
+- Ejecutar una Calibración.
+- Consultar las mediciones en el Historial.
+- Calcular y visualizar picos de una corrida.
 - Exportar e importar corridas en CSV con metadatos.
 
-## Uso con hardware real
+## Uso con el refractómetro
 
-1. Conectar el ESP32 (sensor) y el motor Zaber al equipo.
-2. Pulsar **Actualizar puertos** en la UI y seleccionar los puertos correspondientes.
-3. Presionar **Conectar** para el ESP32 y **Conectar motor** para Zaber.
-4. Cuando ambos dispositivos estén conectados, los botones de barrido y calibración se habilitan.
+### Conectar el equipo
 
-## Estructura del proyecto
+Conecta al ordenador:
 
-Módulos principales:
+- El ESP32, utilizado para adquirir la señal del sensor.
+- El motor Zaber, utilizado para desplazar la muestra.
 
-- `gui/interface.py` — Interfaz DearPyGui y lógica de la UI.
-- `app/application.py` — Controlador de alto nivel que orquesta hardware y experimentos.
-- `app/models.py` — `RunRecord`: modelo tipado para entradas del historial.
-- `experiments/` — Lógica de experimentos (`VoltageSweep`, `CalibrationCurve`).
-- `hardware/` — Drivers y simuladores (ESP32, Zaber, simulados).
-- `storage/csv.py` — Importación y exportación CSV con cabecera de metadatos.
-- `tests/` — Pruebas automatizadas.
+### Seleccionar los dispositivos
+
+1. Abre la aplicación.
+2. Pulsa **Actualizar puertos**.
+3. Selecciona el puerto correspondiente al ESP32.
+4. Selecciona el puerto correspondiente al motor Zaber.
+5. Pulsa **Conectar** para el ESP32.
+6. Pulsa **Conectar motor** para el motor Zaber.
+
+Cuando ambos dispositivos estén conectados, las opciones de Barrido y Calibración estarán disponibles.
+
+### Realizar una medición
+
+La aplicación permite realizar diferentes tipos de experimentos:
+
+- **Barrido**: realiza una medición a lo largo del intervalo de posiciones seleccionado.
+- **Calibración**: permite obtener una curva de calibración.
+- **Historial**: muestra las corridas realizadas durante la sesión.
+- **Picos**: permite identificar los picos presentes en una corrida.
+
+Los resultados pueden exportarse a CSV para analizarlos posteriormente con otras herramientas.
+
+## Datos y archivos CSV
+
+Los resultados exportados por la aplicación se almacenan en archivos CSV.
+
+Además de las mediciones, los archivos contienen información sobre las condiciones del experimento mediante líneas de metadatos:
+
+```text
+# clave: valor
+```
+
+Los metadatos pueden incluir:
+
+- label
+- kind
+- id
+- start_position_mm
+- end_position_mm
+- number_of_points
+- stabilization_time_s
+
+Al importar un archivo CSV, la aplicación recupera tanto las mediciones como los metadatos disponibles.
+
+Si algunos metadatos no están presentes, el importador puede inferir valores por defecto, como la etiqueta a partir del nombre del archivo o el número de puntos a partir de las mediciones.
 
 ## Desarrollo
 
-El proyecto utiliza **Nix + uv** para proporcionar un entorno de desarrollo reproducible.
+Esta sección está destinada a quienes quieran modificar o contribuir al proyecto.
+
+El entorno de desarrollo utiliza Nix + uv para proporcionar un entorno reproducible.
+
+### Requisitos para desarrollar
+
+- Python 3.13+
+- Nix
+- uv
+
+Las dependencias de Python se declaran en `pyproject.toml` y sus versiones exactas se registran en `uv.lock`.
+
+### Dependencias principales
+
+- `dearpygui` >= 2.3.1
+- `pyserial` >= 3.5
+- `zaber-motion` >= 10.0.0
 
 ### Configurar el entorno
 
@@ -81,7 +154,7 @@ nix develop
 uv sync
 ```
 
-Esto crea el entorno virtual de Python y sincroniza las dependencias especificadas en `pyproject.toml` y `uv.lock`.
+Esto proporciona el entorno de Python y sincroniza las dependencias especificadas en `pyproject.toml` y `uv.lock`.
 
 ### Ejecutar la aplicación
 
@@ -90,6 +163,8 @@ Con el entorno configurado:
 ```bash
 uv run python main.py --test
 ```
+
+El argumento `--test` ejecuta la aplicación utilizando hardware simulado.
 
 ### Ejecutar tests
 
@@ -115,13 +190,15 @@ uv run pre-commit run --all-files
 
 ### Añadir dependencias
 
-Las dependencias deben gestionarse con `uv` y no instalarse manualmente dentro del entorno:
+Las dependencias deben gestionarse con `uv`.
+
+Para añadir una dependencia del proyecto:
 
 ```bash
 uv add <paquete>
 ```
 
-Para dependencias exclusivamente de desarrollo:
+Para añadir una dependencia utilizada únicamente durante el desarrollo:
 
 ```bash
 uv add --dev <paquete>
@@ -135,32 +212,37 @@ uv add --dev pytest
 
 Después de modificar las dependencias, `uv` actualizará `pyproject.toml` y `uv.lock`.
 
-## CSV y metadatos
+## Estructura del proyecto
 
-Los CSV exportados por la aplicación incluyen líneas de cabecera comentadas con metadatos en el formato:
+Los principales módulos son:
 
-```text
-# clave: valor
-```
-
-Los metadatos incluyen, cuando están disponibles:
-
-- `label`
-- `kind`
-- `id`
-- `start_position_mm`
-- `end_position_mm`
-- `number_of_points`
-- `stabilization_time_s`
-
-El importador analiza estas líneas y devuelve tanto las mediciones como los metadatos.
-
-Si faltan metadatos, se rellenan valores por defecto, como la etiqueta derivada del nombre de archivo o el recuento inferido.
+- `gui/interface.py` — interfaz gráfica DearPyGui y lógica de la UI.
+- `app/application.py` — controlador de alto nivel que coordina el hardware y los experimentos.
+- `app/models.py` — modelos de datos, incluyendo `RunRecord`.
+- `experiments/` — lógica de los experimentos, como `VoltageSweep` y `CalibrationCurve`.
+- `hardware/` — drivers y simuladores para el ESP32 y el motor Zaber.
+- `storage/csv.py` — importación y exportación de resultados en CSV.
+- `tests/` — pruebas automatizadas.
 
 ## Contribuir
 
-- Crea una rama nueva para cada feature o cambio independiente.
-- Ejecuta los tests y los hooks de `pre-commit` antes de abrir un PR.
-- Mantén `pyproject.toml` y `uv.lock` sincronizados con los cambios de dependencias.
-- Coordina con el mantenedor antes de reescribir el historial de Git.
-- Haz siempre una copia de seguridad antes de realizar operaciones destructivas sobre el historial.
+Para contribuir al proyecto:
+
+1. Crea una rama nueva para cada feature o cambio independiente.
+2. Realiza los cambios y añade las pruebas correspondientes cuando sea necesario.
+3. Ejecuta los tests:
+
+   ```bash
+   uv run pytest -q
+   ```
+
+4. Ejecuta los hooks de pre-commit:
+
+   ```bash
+   uv run pre-commit run --all-files
+   ```
+
+5. Mantén `pyproject.toml` y `uv.lock` sincronizados con los cambios de dependencias.
+6. Abre un Pull Request describiendo los cambios realizados.
+
+Evita reescribir el historial de Git compartido sin coordinarlo previamente con los demás colaboradores.
