@@ -78,6 +78,13 @@ class RunRecord:
         else:
             setattr(self, key, value)
 
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Dict-like .get() for backward compatibility with code that still
+        treats RunRecord as a mapping.
+        """
+        return self.to_dict().get(key, default)
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         # include legacy key name expected by existing code
