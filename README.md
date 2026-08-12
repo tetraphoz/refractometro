@@ -1,59 +1,58 @@
-Project title and short description
-Refractometer GUI and data acquisition for a motorized refractometer. Provides:
-- interactive GUI (DearPyGui) to control motor position and read a voltage sensor,
-- sweep and calibration workflows,
-- CSV import/export with per-file metadata,
-- per-run history with peak extraction and plot markers,
-- typed RunRecord model for history entries.
+Título y descripción
+Refractómetro — interfaz gráfica y adquisición de datos para un refractómetro motorizado. Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar barridos y calibraciones, extraer picos, y guardar/importar resultados en CSV con metadatos.
 
-Requirements
+Requisitos
 - Python 3.13+
-- Dependencies (install via pip): dearpygui, pyserial, zaber-motion
-  Example:
+- Dependencias (instalar con pip):
     python -m pip install "dearpygui>=2.3.1" "pyserial>=3.5" "zaber-motion>=10.0.0"
 
-Quick start (simulated hardware)
-1. Run app using simulated hardware (no devices required):
+Inicio rápido (hardware simulado)
+1. Ejecutar la aplicación usando hardware simulado (no se requieren dispositivos físicos):
     python main.py --test
-2. Use the UI to run sweeps and calibrations, export/import CSVs, compute peaks.
+2. En la UI puede:
+   - Ejecutar un barrido (Barrido) o una calibración (Calibración),
+   - Ver las corridas en el Historial,
+   - Calcular y mostrar picos por corrida,
+   - Exportar / importar corridas en CSV (con metadatos).
 
-Running with real hardware
-- Connect your ESP32 device and Zaber motor ports in the UI.
-- Use the "Actualizar puertos" button to refresh serial port lists.
-- Press "Conectar" for the ESP32 and "Conectar motor" for the motor.
-- When both devices are connected, sweep/calibrate buttons become enabled.
+Uso con hardware real
+- Conectar el ESP32 (sensor) y el motor Zaber al equipo.
+- Pulsar "Actualizar puertos" en la UI y seleccionar los puertos correspondientes.
+- Presionar "Conectar" (ESP32) y "Conectar motor" (Zaber).
+- Cuando ambos dispositivos estén conectados, los botones de barrido/calibración se habilitan.
 
-Project layout (important modules)
-- gui/interface.py — DearPyGui interface and UI logic
-- app/application.py — high-level application controller coordinating hardware and experiments
-- app/models.py — RunRecord dataclass (history entries)
-- experiments/ — measurement logic (VoltageSweep, CalibrationCurve)
-- hardware/ — hardware drivers and simulated devices
-- storage/csv.py — CSV import/export with metadata header
+Estructura del proyecto (módulos principales)
+- gui/interface.py — Interfaz DearPyGui y lógica de la UI
+- app/application.py — Controlador de alto nivel que orquesta hardware y experimentos
+- app/models.py — RunRecord: modelo tipado para entradas de historial
+- experiments/ — Lógica de experimentos (VoltageSweep, CalibrationCurve)
+- hardware/ — Drivers y simuladores (ESP32, Zaber, simulados)
+- storage/csv.py — Importación/exportación CSV con cabecera de metadatos
+- tests/ — Pruebas unitarias (si existen)
 
-Development
-- Run tests:
+Desarrollo
+- Ejecutar tests:
     pytest -q
-- Format and lint (recommended pre-commit):
+- Formatear y lintear (recomendado, con pre-commit):
     pip install pre-commit black ruff isort
     pre-commit install
     pre-commit run --all-files
-- If you use Nix, a dev shell is provided via flake.nix.
+- Si usas Nix, hay un flake (flake.nix) para un entorno de desarrollo reproducible.
 
-CSV metadata
-- CSV files exported by the app include commented metadata header lines ("# key: value") that store run details (start/end position, number of points, stabilization time, label, kind, id). The import routine parses these metadata lines and provides sensible defaults when metadata is absent.
+CSV y metadatos
+- Los CSV exportados por la aplicación llevan líneas de cabecera comentadas con metadatos (formato: "# clave: valor"). Los metadatos incluyen, cuando están disponibles: label, kind, id, start_position_mm, end_position_mm, number_of_points, stabilization_time_s.
+- El importador analiza esas líneas y devuelve tanto las mediciones como los metadatos; si faltan metadatos se rellenan valores por defecto (etiqueta derivada del nombre de archivo, recuento inferido, etc.).
 
-Next recommended improvements
-- Add unit tests for VoltageSweep.find_peaks (edge cases: plateaus, endpoints) and for storage/csv import/export round-trips.
-- Remove the RunRecord mapping-compatibility helpers once the codebase fully uses attribute access (run.field).
-- Add a CI workflow (GitHub Actions) to run tests and linters on PRs.
-- Consider a small UI test or integration test strategy for core workflows.
+Buenas prácticas y próximas mejoras recomendadas
+- Añadir pruebas unitarias adicionales (VoltageSweep.find_peaks, storage CSV round-trips, CalibrationCurve).
+- Finalizar la migración para usar directamente RunRecord (atributos) y eliminar los helpers de compatibilidad tipo dict.
+- Añadir CI (GitHub Actions) para ejecutar pruebas y linters en PRs.
+- Separar el bucle de hilos y la lógica de renderizado (usar cola de eventos para notificar la UI desde hilos worker).
 
-Contributing
-- Create a feature branch, run linters and tests locally, and open a pull request.
-- Coordinate with the maintainer before any git history rewrite; backups and force-pushes will disrupt collaborators.
+Contribuir
+- Crea una rama nueva por feature.
+- Ejecuta linters y tests localmente antes de abrir PR.
+- Coordina con el mantenedor antes de reescribir el historial git; haz siempre una copia de seguridad del repositorio.
 
-License
-- Add a LICENSE file (MIT recommended) if you intend to publish the project.
-
-----
+Licencia
+- Añade un archivo LICENSE (por ejemplo MIT) si vas a publicar el proyecto.
