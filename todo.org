@@ -2,15 +2,15 @@
 
 
 * TODO Limitar botones de barrido y calibración hasta que haya un motor y sensor conectado
-* TODO Limitar botones dentro del historial de la corrida hasta que haya finalizado 
-para no guardar corridas a la mitad
-* TODO Implementar una barra de progreso dentro de la sección del barrido
-* TODO Encontrar multiples picos en los barridos
-* TODO Mostrar el eje y de la grafia de  0 a 3 volts
+* DONE Limitar botones dentro del historial de la corrida hasta que haya finalizado 
+  para no guardar corridas a la mitad
+* DONE Implementar una barra de progreso dentro de la sección del barrido
+* DONE Encontrar multiples picos en los barridos
+* DONE Mostrar el eje y de la grafia de  0 a 3 volts
 * TODO Mejorar separación de intereses en gui/interface.py
-+ [ ]  La exportación a csv debería de ser manejada por stroage/csv.py
+* DONE La exportación a csv debería de ser manejada por stroage/csv.py
 * TODO Estandarizar a ingles nombres de variables y funciones
-* TODO Guardar metadatos de la corrida en cada csv
-Tiempo de estabilización, cantidad de puntos,
-* TODO Regresar motor al punto inicial después de cada corrida
-* TODO Implementar importado de corridas antiguas leyendo csv
+* DONE Guardar metadatos de la corrida en cada csv
+  Tiempo de estabilización, cantidad de puntos,
+* DONE Regresar motor al punto inicial después de cada corrida
+* DONE Implementar importado de corridas antiguas leyendo csv

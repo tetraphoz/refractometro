@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import os
 
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -83,6 +84,19 @@ def import_measurements_csv(
         data_rows.append(row)
 
     if not data_rows:
+        # empty or only-comment file; provide sensible defaults derived from filename
+        basename = (
+            os.path.splitext(os.path.basename(filename))[0]
+            if filename
+            else ""
+        )
+        if not metadata.get("label"):
+            metadata["label"] = basename
+        metadata.setdefault("kind", "imported")
+        metadata.setdefault("number_of_points", "0")
+        metadata.setdefault("start_position_mm", "")
+        metadata.setdefault("end_position_mm", "")
+        metadata.setdefault("stabilization_time_s", "")
         return measurements, metadata
 
     # First non-metadata row is expected to be header; find it
@@ -98,5 +112,27 @@ def import_measurements_csv(
         except Exception:
             continue
         measurements.append(MeasurementPoint(position_mm=pos, voltage_v=volt))
+
+    # Provide sensible metadata defaults if missing so callers (GUI) can
+    # display a friendly label and useful fields without re-computing them.
+    basename = (
+        os.path.splitext(os.path.basename(filename))[0]
+        if filename
+        else ""
+    )
+    if not metadata.get("label"):
+        metadata["label"] = basename
+    metadata.setdefault("kind", "imported")
+    metadata.setdefault("number_of_points", str(len(measurements)))
+
+    if measurements:
+        positions = [m.position_mm for m in measurements]
+        metadata.setdefault("start_position_mm", str(min(positions)))
+        metadata.setdefault("end_position_mm", str(max(positions)))
+    else:
+        metadata.setdefault("start_position_mm", "")
+        metadata.setdefault("end_position_mm", "")
+
+    metadata.setdefault("stabilization_time_s", "")
 
     return measurements, metadata
