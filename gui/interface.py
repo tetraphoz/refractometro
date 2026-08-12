@@ -97,16 +97,50 @@ class ControlInterface:
                 dpg.configure_item(tag, enabled=enabled)
 
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
-        # Configure the buttons of a history row, including the new "Peaks" button.
+        # Configure the buttons of a history row, including the "Peaks" button.
         tags = [
             f"hist_guardar_{run_id}",
             f"hist_corregir_{run_id}",
             f"hist_eliminar_{run_id}",
-            f"hist_peaks_{run_id}",  # new peaks button
+            f"hist_peaks_{run_id}",
         ]
         for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
+
+        # Manage the peaks tooltip text: when the row is disabled, hide tooltip text
+        # so hovering the scatter doesn't show stale information. When re-enabling,
+        # restore tooltip text from stored peaks (if any).
+        tooltip_tag = f"peaks_{run_id}_tooltip_text"
+        if not dpg.does_item_exist(tooltip_tag):
+            return
+
+        if not enabled:
+            # hide tooltip content (best-effort)
+            try:
+                dpg.set_value(tooltip_tag, "")
+            except Exception:
+                pass
+            return
+
+        # enabled == True -> restore tooltip content from run peaks if present
+        run = self._history_by_id.get(run_id)
+        peaks = (run.get("peaks") if run is not None else []) or []
+        if peaks:
+            tooltip_lines = [
+                f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
+                for idx, p in enumerate(peaks[:10], start=1)
+            ]
+            try:
+                dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
+            except Exception:
+                # ignore UI failures
+                pass
+        else:
+            try:
+                dpg.set_value(tooltip_tag, "")
+            except Exception:
+                pass
 
     def _update_operation_buttons_state(self) -> None:
         """
