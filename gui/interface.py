@@ -277,46 +277,42 @@ class ControlInterface:
                     tag=run.text_tag,
                 )
 
-            # Peaks summary displayed vertically below the label (one per line)
             dpg.add_text(
                 "",
-                tag=f"hist_peaks_text_{run['id']}",
+                tag=f"hist_peaks_text_{run.id}",
             )
 
-            # Buttons row (separate, horizontal)
-            with dpg.group(horizontal=True):
+            dpg.add_button(
+                label="Guardar",
+                tag=f"hist_guardar_{run.id}",
+                callback=self.on_click_save_run,
+                user_data=run.id,
+                width=70,
+            )
 
-                dpg.add_button(
-                    label="Guardar",
-                    tag=f"hist_guardar_{run['id']}",
-                    callback=self.on_click_save_run,
-                    user_data=run["id"],
-                    width=70,
-                )
+            dpg.add_button(
+                label="Corregir",
+                tag=f"hist_corregir_{run.id}",
+                callback=self.on_click_correct_run,
+                user_data=run.id,
+                width=70,
+            )
 
-                dpg.add_button(
-                    label="Corregir",
-                    tag=f"hist_corregir_{run['id']}",
-                    callback=self.on_click_correct_run,
-                    user_data=run["id"],
-                    width=70,
-                )
+            dpg.add_button(
+                label="Picos",
+                tag=f"hist_peaks_{run.id}",
+                callback=self.on_click_peaks,
+                user_data=run.id,
+                width=60,
+            )
 
-                dpg.add_button(
-                    label="Picos",
-                    tag=f"hist_peaks_{run['id']}",
-                    callback=self.on_click_peaks,
-                    user_data=run["id"],
-                    width=60,
-                )
-
-                dpg.add_button(
-                    label="✕",
-                    tag=f"hist_eliminar_{run['id']}",
-                    callback=self.on_click_delete_run,
-                    user_data=run["id"],
-                    width=30,
-                )
+            dpg.add_button(
+                label="✕",
+                tag=f"hist_eliminar_{run.id}",
+                callback=self.on_click_delete_run,
+                user_data=run.id,
+                width=30,
+            )
 
             # Ensure peaks button is enabled only if the run already has measurements
             peaks_tag = f"hist_peaks_{run.id}"
@@ -487,12 +483,12 @@ class ControlInterface:
                     dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
         else:
             if peaks:
-                dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
+                dpg.add_scatter_series(xs, ys, label=f"{run.label} peaks", parent="voltage_axis", tag=peaks_tag)
 
         # Update history main label (shows primary peak)
         self.update_history_text(run)
 
-        self.log(f"[PEAKS] Calculados/mostrados {len(peaks)} picos para {run['label']}")
+        self.log(f"[PEAKS] Calculados/mostrados {len(peaks)} picos para {run.label}")
 
     def clear_history(self) -> None:
 
