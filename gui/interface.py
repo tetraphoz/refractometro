@@ -1016,7 +1016,7 @@ class ControlInterface:
 
                 dpg.add_button(
                     label="Actualizar puertos",
-                    callback=self.actualizar_puertos,
+                    callback=self.update_ports,
                 )
 
                 dpg.add_button(
