@@ -362,7 +362,7 @@ class ControlInterface:
                     dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
                 else:
                     dpg.set_value(tooltip_tag, "")
-        except (RuntimeError,) as exc:
+        except RuntimeError as exc:
             # best-effort UI update; don't crash on tooltip failures — log for debugging
             self.log(f"[TOOLTIP ERROR] {exc}")
 
@@ -424,7 +424,7 @@ class ControlInterface:
             if dpg.does_item_exist(peaks_tag):
                 try:
                     dpg.configure_item(peaks_tag, show=False)
-                except (RuntimeError,) as exc:
+                except RuntimeError as exc:
                     self.log(f"[PEAKS ERROR] {exc}")
             self.log(f"[PEAKS] Ocultados picos de {run.label}")
             return
@@ -464,11 +464,11 @@ class ControlInterface:
             try:
                 dpg.set_value(peaks_tag, [xs, ys])
                 dpg.configure_item(peaks_tag, show=bool(peaks))
-            except (RuntimeError,) as exc:
+            except RuntimeError as exc:
                 self.log(f"[PEAKS ERROR] {exc}")
                 try:
                     dpg.delete_item(peaks_tag)
-                except (RuntimeError,) as exc2:
+                except RuntimeError as exc2:
                     self.log(f"[PEAKS ERROR] {exc2}")
                 if peaks:
                     dpg.add_scatter_series(
@@ -549,7 +549,7 @@ class ControlInterface:
             self.export_run_csv(run, path)
             self.log(f"[HISTORIAL] Guardado: {path}")
 
-        except (OSError, IOError) as exc:
+        except OSError as exc:
             self.log(f"[HISTORIAL ERROR] {exc}")
 
     def file_picker_import(self, sender, file_data) -> None:
@@ -781,7 +781,7 @@ class ControlInterface:
 
             self.log("[ESP32] Conectado")
 
-        except (OSError, IOError, RuntimeError) as exc:
+        except (OSError, RuntimeError) as exc:
             # Ensure flag is false on failure and update buttons
             self._sensor_connected = False
             self._update_operation_buttons_state()
@@ -799,7 +799,7 @@ class ControlInterface:
 
             self.log("[MOTOR] Conectado")
 
-        except (OSError, IOError, RuntimeError) as exc:
+        except (OSError, RuntimeError) as exc:
             # Ensure flag is false on failure and update buttons
             self._motor_connected = False
             self._update_operation_buttons_state()
@@ -816,7 +816,7 @@ class ControlInterface:
 
             self.log("[MOTOR] Movimiento completado")
 
-        except (RuntimeError, OSError, IOError) as exc:
+        except (RuntimeError, OSError) as exc:
             self.log(f"[MOTOR ERROR] {exc}")
 
         finally:

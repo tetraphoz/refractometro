@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 
 @dataclass
@@ -41,7 +41,7 @@ class VoltageSweep:
         end_position_mm: float,
         number_of_points: int,
         stabilization_time_s: float,
-        progress_callback: (Callable[[MeasurementPoint], None] | None) = None,
+        progress_callback: Callable[[MeasurementPoint], None] | None = None,
     ) -> list[MeasurementPoint]:
         if number_of_points < 2:
             raise ValueError("Se necesitan al menos dos puntos")
@@ -107,9 +107,7 @@ class VoltageSweep:
 
             # endpoints: compare with the single neighbor
             if i == 0:
-                if n == 1:
-                    peaks.append(sorted_meas[i])
-                elif (
+                if n == 1 or (
                     v >= sorted_meas[i + 1].voltage_v
                     and v > sorted_meas[i + 1].voltage_v
                 ):

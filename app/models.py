@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -21,20 +21,20 @@ class RunRecord:
     kind: str
     label: str
     curve_tag: str
-    measurements: List[MeasurementPoint] = field(default_factory=list)
-    peak: Optional[MeasurementPoint] = None
-    peaks: List[MeasurementPoint] = field(default_factory=list)
-    csv_filename: Optional[str] = None
-    row_tag: Optional[str] = None
-    text_tag: Optional[str] = None  # new canonical name (was texto_tag)
-    expected_points: Optional[int] = None
-    stabilization_time_s: Optional[str] = ""
+    measurements: list[MeasurementPoint] = field(default_factory=list)
+    peak: MeasurementPoint | None = None
+    peaks: list[MeasurementPoint] = field(default_factory=list)
+    csv_filename: str | None = None
+    row_tag: str | None = None
+    text_tag: str | None = None  # new canonical name (was texto_tag)
+    expected_points: int | None = None
+    stabilization_time_s: str | None = ""
     created_at: float = field(default_factory=time.time)
 
     # Mapping-like access for compatibility with existing dict-based code:
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "RunRecord":
+    def from_dict(cls, data: dict[str, Any]) -> RunRecord:
         return cls(
             id=data.get("id", 0),
             kind=data.get("kind", ""),
