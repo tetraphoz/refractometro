@@ -59,8 +59,11 @@ class ControlInterface:
         # reemplazar siempre las mismas curvas- para poder comparar varias
         # mediciones entre sí, incluso si tienen distinta cantidad de
         # puntos.
-        self._history: list[dict] = []
-        self._history_by_id: dict[int, dict] = {}
+        # History stored as typed RunRecord instances (gradual migration).
+        # Keep using mapping-style access (run["label"], ...) since RunRecord
+        # implements __getitem__/__setitem__ for compatibility.
+        self._history: list[RunRecord] = []
+        self._history_by_id: dict[int, RunRecord] = {}
         self._run_counter = 0
 
         # Corrida en curso (None si no hay ninguna). Los callbacks de
@@ -182,33 +185,24 @@ class ControlInterface:
         curve_tag: str,
     ) -> dict:
 
-        run = {
-            "id": run_id,
-            "kind": kind,
-            "label": label,
-            "curve_tag": curve_tag,
-            "measurements": [],
-            "peak": None,
-            # Solo los barridos lo llenan (ver iniciar_barrido): ruta del
-            # CSV que el controlador ya guarda automáticamente.
-            "csv_filename": None,
-            "row_tag": f"historial_fila_{run_id}",
-            "texto_tag": f"historial_texto_{run_id}",
-        }
+        # Create a typed RunRecord (preferred) and store it in history.
+        run = RunRecord(
+            id=run_id,
+            kind=kind,
+            label=label,
+            curve_tag=curve_tag,
+            measurements=[],
+            peak=None,
+            peaks=[],
+            csv_filename=None,
+            row_tag=f"historial_fila_{run_id}",
+            text_tag=f"historial_texto_{run_id}",
+        )
 
         self._history.append(run)
         self._history_by_id[run_id] = run
 
         self._agregar_fila_historial(run)
-
-        # Create a typed RunRecord for gradual migration (kept alongside dict for now).
-        try:
-            run_record = RunRecord.from_dict(run)
-            # attach to the dict so new code can access it:
-            run["_record"] = run_record
-        except Exception:
-            # If anything goes wrong, ignore and keep legacy dict behavior.
-            run["_record"] = None
 
         return run
 

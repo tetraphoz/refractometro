@@ -53,9 +53,9 @@ def main() -> None:
     interface = ControlInterface(controller=controller,)
 
     # Ejecutar aplicación
-    interface.construir()
-    interface.ejecutar()
-    interface.cerrar()
+    interface.build()
+    interface.run()
+    interface.close()
 
 
 if __name__ == "__main__":
