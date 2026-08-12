@@ -2,28 +2,52 @@
 
 Interfaz gráfica y adquisición de datos para un refractómetro motorizado.
 
-Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar barridos y calibraciones, extraer picos, y guardar/importar resultados en CSV con metadatos.
-
-![Interface](./interface.jpg)
+Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar barridos y calibraciones, extraer picos, y guardar e importar resultados en CSV con metadatos.
 
 ## Requisitos
 
 - Python 3.13+
-- Dependencias:
-  - Con `pip`:
-    - `python -m pip install "dearpygui>=2.3.1" "pyserial>=3.5" "zaber-motion>=10.0.0"`
-  - Con `nix`:
-    - `nix develop`
+- [Nix](https://nixos.org/) — recomendado para el entorno de desarrollo
+- [uv](https://docs.astral.sh/uv/) — gestión de dependencias y entornos Python
 
-## Inicio rápido (hardware simulado)
+Las dependencias de Python se declaran en `pyproject.toml` y las versiones exactas se registran en `uv.lock`.
 
-1. Ejecutar la aplicación usando hardware simulado. No se requieren dispositivos físicos:
-   - `python main.py --test`
-2. En la UI puedes:
-   - Ejecutar un barrido (**Barrido**) o una calibración (**Calibración**)
-   - Ver las corridas en el **Historial**
-   - Calcular y mostrar picos por corrida
-   - Exportar e importar corridas en CSV con metadatos
+### Dependencias principales
+
+- `dearpygui >= 2.3.1`
+- `pyserial >= 3.5`
+- `zaber-motion >= 10.0.0`
+
+## Inicio rápido
+
+### Hardware simulado
+
+Es posible ejecutar la aplicación sin dispositivos físicos utilizando hardware simulado.
+
+1. Entrar al entorno de desarrollo:
+
+   ```bash
+   nix develop
+   ```
+
+2. Instalar las dependencias:
+
+   ```bash
+   uv sync
+   ```
+
+3. Ejecutar la aplicación:
+
+   ```bash
+   uv run python main.py --test
+   ```
+
+En la interfaz puedes:
+
+- Ejecutar un barrido (**Barrido**) o una calibración (**Calibración**).
+- Ver las corridas en el **Historial**.
+- Calcular y mostrar picos por corrida.
+- Exportar e importar corridas en CSV con metadatos.
 
 ## Uso con hardware real
 
@@ -36,44 +60,88 @@ Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar 
 
 Módulos principales:
 
-- `gui/interface.py` — Interfaz DearPyGui y lógica de la UI
-- `app/application.py` — Controlador de alto nivel que orquesta hardware y experimentos
-- `app/models.py` — `RunRecord`: modelo tipado para entradas del historial
-- `experiments/` — Lógica de experimentos (`VoltageSweep`, `CalibrationCurve`)
-- `hardware/` — Drivers y simuladores (ESP32, Zaber, simulados)
-- `storage/csv.py` — Importación y exportación CSV con cabecera de metadatos
-- `tests/` — Pruebas unitarias, si existen
+- `gui/interface.py` — Interfaz DearPyGui y lógica de la UI.
+- `app/application.py` — Controlador de alto nivel que orquesta hardware y experimentos.
+- `app/models.py` — `RunRecord`: modelo tipado para entradas del historial.
+- `experiments/` — Lógica de experimentos (`VoltageSweep`, `CalibrationCurve`).
+- `hardware/` — Drivers y simuladores (ESP32, Zaber, simulados).
+- `storage/csv.py` — Importación y exportación CSV con cabecera de metadatos.
+- `tests/` — Pruebas automatizadas.
 
 ## Desarrollo
 
+El proyecto utiliza **Nix + uv** para proporcionar un entorno de desarrollo reproducible.
+
+### Configurar el entorno
+
+Desde una copia del repositorio:
+
+```bash
+nix develop
+uv sync
+```
+
+Esto crea el entorno virtual de Python y sincroniza las dependencias especificadas en `pyproject.toml` y `uv.lock`.
+
+### Ejecutar la aplicación
+
+Con el entorno configurado:
+
+```bash
+uv run python main.py --test
+```
+
 ### Ejecutar tests
 
-- `pytest -q`
+```bash
+uv run pytest -q
+```
 
 ### Formatear y lintear
 
-Recomendado con `pre-commit`:
+El proyecto utiliza `pre-commit` para ejecutar automáticamente las herramientas de formato y análisis estático.
 
-- `pip install pre-commit black ruff isort`
-- `pre-commit install`
-- `pre-commit run --all-files`
+Instalar los hooks:
 
-### Entorno con Nix
+```bash
+uv run pre-commit install
+```
 
-Si usas Nix, el proyecto incluye un `flake.nix` para un entorno de desarrollo reproducible.
+Ejecutar todos los hooks manualmente:
 
-- Entrar al entorno:
-  - `nix develop`
-- Ejecutar tests dentro del entorno:
-  - `nix develop -c pytest -q`
-- Instalar dependencias de Python dentro del entorno:
-  - `nix develop -c python -m pip install "dearpygui>=2.3.1" "pyserial>=3.5" "zaber-motion>=10.0.0"`
+```bash
+uv run pre-commit run --all-files
+```
+
+### Añadir dependencias
+
+Las dependencias deben gestionarse con `uv` y no instalarse manualmente dentro del entorno:
+
+```bash
+uv add <paquete>
+```
+
+Para dependencias exclusivamente de desarrollo:
+
+```bash
+uv add --dev <paquete>
+```
+
+Por ejemplo:
+
+```bash
+uv add --dev pytest
+```
+
+Después de modificar las dependencias, `uv` actualizará `pyproject.toml` y `uv.lock`.
 
 ## CSV y metadatos
 
 Los CSV exportados por la aplicación incluyen líneas de cabecera comentadas con metadatos en el formato:
 
-- `# clave: valor`
+```text
+# clave: valor
+```
 
 Los metadatos incluyen, cuando están disponibles:
 
@@ -85,10 +153,14 @@ Los metadatos incluyen, cuando están disponibles:
 - `number_of_points`
 - `stabilization_time_s`
 
-El importador analiza esas líneas y devuelve tanto las mediciones como los metadatos. Si faltan metadatos, se rellenan valores por defecto, como la etiqueta derivada del nombre de archivo o el recuento inferido.
+El importador analiza estas líneas y devuelve tanto las mediciones como los metadatos.
+
+Si faltan metadatos, se rellenan valores por defecto, como la etiqueta derivada del nombre de archivo o el recuento inferido.
 
 ## Contribuir
 
-- Crea una rama nueva por feature.
-- Ejecuta linters y tests localmente antes de abrir un PR.
-- Coordina con el mantenedor antes de reescribir el historial de git; haz siempre una copia de seguridad del repositorio.
+- Crea una rama nueva para cada feature o cambio independiente.
+- Ejecuta los tests y los hooks de `pre-commit` antes de abrir un PR.
+- Mantén `pyproject.toml` y `uv.lock` sincronizados con los cambios de dependencias.
+- Coordina con el mantenedor antes de reescribir el historial de Git.
+- Haz siempre una copia de seguridad antes de realizar operaciones destructivas sobre el historial.
