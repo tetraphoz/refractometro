@@ -223,9 +223,9 @@ class ControlInterface:
                     dpg.set_value(peaks_label_tag, summary)
                 else:
                     dpg.set_value(peaks_label_tag, "")
-        except Exception:
-            # best-effort: don't break UI if peak finding fails
-            pass
+        except (ValueError, IndexError, KeyError, RuntimeError) as exc:
+            # best-effort: don't break UI if peak finding fails; record for debugging
+            self.log(f"[PEAKS ERROR] {exc}")
 
         return run
 
@@ -362,9 +362,9 @@ class ControlInterface:
                     dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
                 else:
                     dpg.set_value(tooltip_tag, "")
-        except Exception:
-            # best-effort UI update; don't crash on tooltip failures
-            pass
+        except (RuntimeError,) as exc:
+            # best-effort UI update; don't crash on tooltip failures — log for debugging
+            self.log(f"[TOOLTIP ERROR] {exc}")
 
     def delete_run(self, run: RunRecord) -> None:
         if dpg.does_item_exist(run.curve_tag):
@@ -414,7 +414,9 @@ class ControlInterface:
             try:
                 cfg = dpg.get_item_configuration(peaks_tag)
                 visible = bool(cfg.get("show", True))
-            except Exception:
+            except (RuntimeError, KeyError) as exc:
+                # If we can't read configuration, assume visible and log for debugging.
+                self.log(f"[PEAKS ERROR] unable to read peaks visibility: {exc}")
                 visible = True
 
         if visible:
@@ -422,8 +424,8 @@ class ControlInterface:
             if dpg.does_item_exist(peaks_tag):
                 try:
                     dpg.configure_item(peaks_tag, show=False)
-                except Exception:
-                    pass
+                except (RuntimeError,) as exc:
+                    self.log(f"[PEAKS ERROR] {exc}")
             self.log(f"[PEAKS] Ocultados picos de {run.label}")
             return
 
@@ -438,7 +440,7 @@ class ControlInterface:
         if not peaks:
             try:
                 peaks = self.controller.sweep.find_peaks(measurements)
-            except Exception as exc:
+            except (ValueError, IndexError, RuntimeError) as exc:
                 self.log(f"[PEAKS ERROR] {exc}")
                 return
             run.peaks = peaks
@@ -462,11 +464,12 @@ class ControlInterface:
             try:
                 dpg.set_value(peaks_tag, [xs, ys])
                 dpg.configure_item(peaks_tag, show=bool(peaks))
-            except Exception:
+            except (RuntimeError,) as exc:
+                self.log(f"[PEAKS ERROR] {exc}")
                 try:
                     dpg.delete_item(peaks_tag)
-                except Exception:
-                    pass
+                except (RuntimeError,) as exc2:
+                    self.log(f"[PEAKS ERROR] {exc2}")
                 if peaks:
                     dpg.add_scatter_series(
                         xs,
@@ -546,7 +549,7 @@ class ControlInterface:
             self.export_run_csv(run, path)
             self.log(f"[HISTORIAL] Guardado: {path}")
 
-        except Exception as exc:
+        except (OSError, IOError) as exc:
             self.log(f"[HISTORIAL ERROR] {exc}")
 
     def file_picker_import(self, sender, file_data) -> None:
@@ -557,7 +560,7 @@ class ControlInterface:
 
         try:
             measurements, metadata = import_measurements_csv(path)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError) as exc:
             self.log(f"[IMPORT ERROR] {exc}")
             return
 
@@ -656,7 +659,7 @@ class ControlInterface:
         try:
             corregidos = self.subtract_reference(run, blanco)
 
-        except Exception as exc:
+        except (ValueError, IndexError, RuntimeError) as exc:
             self.log(f"[CORRECCIÓN ERROR] {exc}")
             return
 
@@ -778,7 +781,7 @@ class ControlInterface:
 
             self.log("[ESP32] Conectado")
 
-        except Exception as exc:
+        except (OSError, IOError, RuntimeError) as exc:
             # Ensure flag is false on failure and update buttons
             self._sensor_connected = False
             self._update_operation_buttons_state()
@@ -796,7 +799,7 @@ class ControlInterface:
 
             self.log("[MOTOR] Conectado")
 
-        except Exception as exc:
+        except (OSError, IOError, RuntimeError) as exc:
             # Ensure flag is false on failure and update buttons
             self._motor_connected = False
             self._update_operation_buttons_state()
@@ -813,7 +816,7 @@ class ControlInterface:
 
             self.log("[MOTOR] Movimiento completado")
 
-        except Exception as exc:
+        except (RuntimeError, OSError, IOError) as exc:
             self.log(f"[MOTOR ERROR] {exc}")
 
         finally:
@@ -873,7 +876,7 @@ class ControlInterface:
 
             self.log("[BARRIDO] Iniciado")
 
-        except Exception as exc:
+        except (OSError, ValueError, RuntimeError) as exc:
             self.log(f"[BARRIDO ERROR] {exc}")
 
             if run is not None:
@@ -951,7 +954,7 @@ class ControlInterface:
 
             self.log("[CALIBRACIÓN] Iniciada")
 
-        except Exception as exc:
+        except (OSError, ValueError, RuntimeError) as exc:
             self.log(f"[CALIBRACIÓN ERROR] {exc}")
 
             if run is not None:
@@ -1448,7 +1451,7 @@ class ControlInterface:
             self._sensor_connected = False
             self._update_operation_buttons_state()
             self.log("[ESP32] Desconectado")
-        except Exception as exc:
+        except (OSError, RuntimeError) as exc:
             self.log(f"[ESP32 ERROR] {exc}")
 
         if hasattr(self.controller, "disconnect_motor"):
@@ -1457,7 +1460,7 @@ class ControlInterface:
                 self._motor_connected = False
                 self._update_operation_buttons_state()
                 self.log("[MOTOR] Desconectado")
-            except Exception as exc:
+            except (OSError, RuntimeError) as exc:
                 self.log(f"[MOTOR ERROR] {exc}")
 
         dpg.destroy_context()
