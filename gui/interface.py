@@ -218,8 +218,8 @@ class ControlInterface:
             peaks_label_tag = f"hist_peaks_text_{run_id}"
             if dpg.does_item_exist(peaks_label_tag):
                 if peaks:
-                    summary = "; ".join(
-                        f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                    summary = "\n".join(
+                        f"{idx}. {p.voltage_v:.4f}V @ {p.position_mm:.2f}mm"
                         for idx, p in enumerate(peaks[:5], start=1)
                     )
                     dpg.set_value(peaks_label_tag, summary)
@@ -262,13 +262,15 @@ class ControlInterface:
 
     def add_history_row(self, run: RunRecord) -> None:
 
-        with dpg.group(
+        with dpg.child_window(
             tag=run["row_tag"],
             parent="historial_lista",
+            height=90,
+            border=False,
         ):
 
+            # Top row: checkbox + run label
             with dpg.group(horizontal=True):
-
                 dpg.add_checkbox(
                     default_value=True,
                     callback=self.toggle_run_visibility,
@@ -280,11 +282,13 @@ class ControlInterface:
                     tag=run["texto_tag"],
                 )
 
-                dpg.add_text(
-                    "",
-                    tag=f"hist_peaks_text_{run['id']}",
-                )
+            # Peaks summary displayed vertically below the label (one per line)
+            dpg.add_text(
+                "",
+                tag=f"hist_peaks_text_{run['id']}",
+            )
 
+            # Buttons row (separate, horizontal)
             with dpg.group(horizontal=True):
 
                 dpg.add_button(
@@ -464,8 +468,8 @@ class ControlInterface:
             # update history label because we just computed peaks
             if dpg.does_item_exist(peaks_label_tag):
                 if peaks:
-                    summary = "; ".join(
-                        f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                    summary = "\n".join(
+                        f"{idx}. {p.voltage_v:.4f}V @ {p.position_mm:.2f}mm"
                         for idx, p in enumerate(peaks[:5], start=1)
                     )
                     dpg.set_value(peaks_label_tag, summary)
@@ -1123,8 +1127,8 @@ class ControlInterface:
                 peaks_label_tag = f"hist_peaks_text_{run['id']}"
                 if dpg.does_item_exist(peaks_label_tag):
                     if peaks:
-                        summary = "; ".join(
-                            f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                        summary = "\n".join(
+                            f"{idx}. {p.voltage_v:.4f}V @ {p.position_mm:.2f}mm"
                             for idx, p in enumerate(peaks[:5], start=1)
                         )
                         dpg.set_value(peaks_label_tag, summary)
