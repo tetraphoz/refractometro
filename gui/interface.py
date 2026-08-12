@@ -44,6 +44,11 @@ class ControlInterface:
 
         self.controller = controller
 
+        # Track device connection state so operation buttons are only enabled
+        # when both sensor and motor are connected.
+        self._sensor_connected: bool = False
+        self._motor_connected: bool = False
+
         # deque con límite: evita reconstruir la lista completa de líneas
         # (splitlines + join) en cada llamada a log().
         self._log_lines: deque[str] = deque(maxlen=300)
@@ -97,6 +102,14 @@ class ControlInterface:
         for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
+
+    def _update_operation_buttons_state(self) -> None:
+        """
+        Enable operation buttons only when both sensor and motor are connected.
+        Call whenever connection state changes.
+        """
+        enabled = bool(self._sensor_connected and self._motor_connected)
+        self._set_operation_buttons_enabled(enabled)
 
     # Historial de corridas
     def _crear_run(
@@ -592,48 +605,43 @@ class ControlInterface:
     def conectar_esp32(self,):
 
         try:
-
             self.controller.connect_sensor(
-                dpg.get_value(
-                    "puerto_esp32"
-                ),
-
-                dpg.get_value(
-                    "baudrate"
-                ),
+                dpg.get_value("puerto_esp32"),
+                dpg.get_value("baudrate"),
             )
 
-            dpg.set_value(
-                "estado_esp32",
-                "Conectado",
-            )
+            dpg.set_value("estado_esp32", "Conectado")
+            self._sensor_connected = True
+            self._update_operation_buttons_state()
 
             self.log("[ESP32] Conectado")
 
         except Exception as exc:
-
-            self.log(
-                f"[ESP32 ERROR] {exc}"
-            )
+            # Ensure flag is false on failure and update buttons
+            self._sensor_connected = False
+            self._update_operation_buttons_state()
+            dpg.set_value("estado_esp32", "Desconectado")
+            self.log(f"[ESP32 ERROR] {exc}")
 
     # Callbacks motor
     def conectar_motor(self,):
 
         try:
             self.controller.connect_motor(
-                dpg.get_value(
-                    "puerto_motor"
-                )
+                dpg.get_value("puerto_motor")
             )
 
-            dpg.set_value(
-                "estado_motor",
-                "Conectado",
-            )
+            dpg.set_value("estado_motor", "Conectado")
+            self._motor_connected = True
+            self._update_operation_buttons_state()
 
             self.log("[MOTOR] Conectado")
 
         except Exception as exc:
+            # Ensure flag is false on failure and update buttons
+            self._motor_connected = False
+            self._update_operation_buttons_state()
+            dpg.set_value("estado_motor", "Desconectado")
             self.log(f"[MOTOR ERROR] {exc}")
 
     def mover_motor(
@@ -1282,6 +1290,9 @@ class ControlInterface:
             3.0,
         )
 
+        # Initialize operation buttons state (they should be disabled until both devices connect)
+        self._update_operation_buttons_state()
+
         self.actualizar_puertos()
 
     def actualizar_curva(
@@ -1319,6 +1330,8 @@ class ControlInterface:
 
         try:
             self.controller.disconnect_sensor()
+            self._sensor_connected = False
+            self._update_operation_buttons_state()
             self.log("[ESP32] Desconectado")
         except Exception as exc:
             self.log(f"[ESP32 ERROR] {exc}")
@@ -1326,6 +1339,8 @@ class ControlInterface:
         if hasattr(self.controller, "disconnect_motor"):
             try:
                 self.controller.disconnect_motor()
+                self._motor_connected = False
+                self._update_operation_buttons_state()
                 self.log("[MOTOR] Desconectado")
             except Exception as exc:
                 self.log(f"[MOTOR ERROR] {exc}")
