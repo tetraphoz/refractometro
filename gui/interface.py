@@ -282,37 +282,39 @@ class ControlInterface:
                 tag=f"hist_peaks_text_{run.id}",
             )
 
-            dpg.add_button(
-                label="Guardar",
-                tag=f"hist_guardar_{run.id}",
-                callback=self.on_click_save_run,
-                user_data=run.id,
-                width=70,
-            )
+            # Buttons row (horizontal)
+            with dpg.group(horizontal=True):
+                dpg.add_button(
+                    label="Guardar",
+                    tag=f"hist_guardar_{run.id}",
+                    callback=self.on_click_save_run,
+                    user_data=run.id,
+                    width=70,
+                )
 
-            dpg.add_button(
-                label="Corregir",
-                tag=f"hist_corregir_{run.id}",
-                callback=self.on_click_correct_run,
-                user_data=run.id,
-                width=70,
-            )
+                dpg.add_button(
+                    label="Corregir",
+                    tag=f"hist_corregir_{run.id}",
+                    callback=self.on_click_correct_run,
+                    user_data=run.id,
+                    width=70,
+                )
 
-            dpg.add_button(
-                label="Picos",
-                tag=f"hist_peaks_{run.id}",
-                callback=self.on_click_peaks,
-                user_data=run.id,
-                width=60,
-            )
+                dpg.add_button(
+                    label="Picos",
+                    tag=f"hist_peaks_{run.id}",
+                    callback=self.on_click_peaks,
+                    user_data=run.id,
+                    width=60,
+                )
 
-            dpg.add_button(
-                label="✕",
-                tag=f"hist_eliminar_{run.id}",
-                callback=self.on_click_delete_run,
-                user_data=run.id,
-                width=30,
-            )
+                dpg.add_button(
+                    label="✕",
+                    tag=f"hist_eliminar_{run.id}",
+                    callback=self.on_click_delete_run,
+                    user_data=run.id,
+                    width=30,
+                )
 
             # Ensure peaks button is enabled only if the run already has measurements
             peaks_tag = f"hist_peaks_{run.id}"
