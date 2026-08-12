@@ -395,10 +395,19 @@ class ControlInterface:
         if dpg.does_item_exist(run["curve_tag"]):
             dpg.delete_item(run["curve_tag"])
 
-        # remove peaks series if present
+        # remove peaks series if present (and its tooltip text item)
         peaks_tag = f"peaks_{run['id']}"
         if dpg.does_item_exist(peaks_tag):
             dpg.delete_item(peaks_tag)
+
+        tooltip_tag = f"{peaks_tag}_tooltip_text"
+        if dpg.does_item_exist(tooltip_tag):
+            try:
+                dpg.delete_item(tooltip_tag)
+            except Exception:
+                # some versions of DearPyGui may not allow deleting tooltip children directly;
+                # ignore failures to avoid crashing the UI.
+                pass
 
         if dpg.does_item_exist(run["row_tag"]):
             dpg.delete_item(run["row_tag"])
