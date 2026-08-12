@@ -4,7 +4,7 @@ Interfaz gráfica y adquisición de datos para un refractómetro motorizado.
 
 Permite controlar un motor Zaber, leer un sensor conectado a un ESP32, ejecutar barridos y calibraciones, extraer picos, y guardar/importar resultados en CSV con metadatos.
 
-![Interface][./interface.jpg]
+![Interface](./interface.jpg)
 
 ## Requisitos
 
