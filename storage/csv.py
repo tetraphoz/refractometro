@@ -4,6 +4,8 @@ import csv
 import logging
 import os
 
+logger = logging.getLogger(__name__)
+
 from experiments.voltage_sweep import MeasurementPoint
 
 
@@ -105,7 +107,7 @@ def import_measurements_csv(
             pos = float(row[0])
             volt = float(row[1])
         except (ValueError, TypeError, IndexError) as exc:
-            logging.debug("Skipping CSV row %r: %s", row, exc)
+            logger.debug("Skipping CSV row %r: %s", row, exc)
             continue
         measurements.append(MeasurementPoint(position_mm=pos, voltage_v=volt))
 

@@ -4,6 +4,8 @@ import logging
 import threading
 from collections.abc import Callable
 
+logger = logging.getLogger(__name__)
+
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
 from storage.csv import save_measurements_csv
@@ -145,7 +147,7 @@ class ApplicationController:
                     self.motor.move_absolute(start_position_mm)
                 except (OSError, RuntimeError):
                     # Best-effort: log failure to return motor to initial position for debugging.
-                    logging.debug(
+                    logger.debug(
                         "Failed to return motor to initial position", exc_info=True
                     )
                 self._running = False
