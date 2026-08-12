@@ -136,8 +136,8 @@ class VoltageSweep:
         measurements: list[MeasurementPoint],
     ) -> list[MeasurementPoint]:
         """
-        Find local maxima (simple 3-point neighborhood test).
-        Returns peaks sorted by voltage_v descending.
+        Find local maxima (3-point neighborhood test, tolerant to small
+        plateaus). Returns peaks sorted by voltage_v descending.
         """
 
         if not measurements:
@@ -154,19 +154,22 @@ class VoltageSweep:
 
             # endpoints: compare with the single neighbor
             if i == 0:
-                if n > 1 and v > sorted_meas[i + 1].voltage_v:
+                if n == 1:
                     peaks.append(sorted_meas[i])
-                elif n == 1:
+                elif v >= sorted_meas[i + 1].voltage_v and v > sorted_meas[i + 1].voltage_v:
                     peaks.append(sorted_meas[i])
                 continue
 
             if i == n - 1:
-                if v > sorted_meas[i - 1].voltage_v:
+                if v >= sorted_meas[i - 1].voltage_v and v > sorted_meas[i - 1].voltage_v:
                     peaks.append(sorted_meas[i])
                 continue
 
-            # interior point: local maximum if greater than both neighbors
-            if v > sorted_meas[i - 1].voltage_v and v > sorted_meas[i + 1].voltage_v:
+            left = sorted_meas[i - 1].voltage_v
+            right = sorted_meas[i + 1].voltage_v
+
+            # interior point: local maximum if >= both neighbors and strictly greater than at least one
+            if (v >= left and v >= right) and (v > left or v > right):
                 peaks.append(sorted_meas[i])
 
         # sort peaks by voltage descending

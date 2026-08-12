@@ -735,7 +735,7 @@ class ControlInterface:
                 self.actualizar_barrido,
 
                 on_finished=
-                self.mostrar_pico,
+                self.show_peaks,
             )
 
             self.log("[BARRIDO] Iniciado")
@@ -876,34 +876,49 @@ class ControlInterface:
         self._active_run = None
         self._set_operation_buttons_enabled(True)
 
-    def mostrar_pico(
+    def show_peaks(
         self,
-        peak: MeasurementPoint,
-    ):
+        peaks: list[MeasurementPoint],
+    ) -> None:
+        """
+        Handle the end of a sweep: receives a list of peaks (possibly empty).
+        Updates the active run's metadata, the history text and the result widget.
+        """
 
         with dpg.mutex():
 
             run = self._active_run
 
+            primary = None
+            if peaks:
+                # choose highest-voltage peak as primary
+                primary = peaks[0]
+
             if run is not None:
-                run["peak"] = peak
+                # store peaks list and primary peak
+                run["peaks"] = peaks
+                run["peak"] = primary
                 self._actualizar_texto_historial(run)
                 # enable row buttons now that run finished
                 self._set_run_buttons_enabled(run["id"], True)
 
-            dpg.set_value(
-                "resultado_maximo",
-                (
-                    "Máximo encontrado:\n"
-                    f"{peak.voltage_v:.4f} V\n"
-                    f"Posición: {peak.position_mm:.4f} mm"
-                ),
-            )
+            if not peaks:
+                dpg.set_value("resultado_maximo", "No se encontraron picos.")
+            else:
+                # Show top N peaks (up to 5) in result box
+                lines = ["Picos encontrados:"]
+                for idx, p in enumerate(peaks[:5], start=1):
+                    lines.append(f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm")
+                dpg.set_value("resultado_maximo", "\n".join(lines))
 
             self.log("[BARRIDO] Finalizado")
 
         self._active_run = None
         self._set_operation_buttons_enabled(True)
+
+    def mostrar_pico(self, peak: MeasurementPoint) -> None:
+        # Compatibility wrapper: old callers pass a single MeasurementPoint
+        self.show_peaks([peak] if peak is not None else [])
 
     # Construcción UI
     def construir(self):

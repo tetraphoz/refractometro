@@ -192,19 +192,13 @@ class ApplicationController:
                 )
 
 
-                peak = (
-                    self.sweep
-                    .find_peak(
-                        measurements
-                    )
-                )
-
+                # Find all peaks (may be zero or more) and notify UI
+                peaks = self.sweep.find_peaks(measurements)
 
                 if on_finished:
-
-                    on_finished(
-                        peak
-                    )
+                    # previously on_finished expected one MeasurementPoint;
+                    # now it receives a list[MeasurementPoint]
+                    on_finished(peaks)
 
 
             finally:
