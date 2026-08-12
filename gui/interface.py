@@ -262,13 +262,7 @@ class ControlInterface:
 
     def add_history_row(self, run: RunRecord) -> None:
 
-        with dpg.child_window(
-            tag=run["row_tag"],
-            parent="historial_lista",
-            border=False,
-            autosize_y=True,
-            no_scrollbar=True,
-        ):
+        with dpg.group(tag=run["row_tag"], parent="historial_lista"):
 
             # Top row: checkbox + run label
             with dpg.group(horizontal=True):
