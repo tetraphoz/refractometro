@@ -414,9 +414,8 @@ class ControlInterface:
 
     def on_click_peaks(self, sender, app_data, user_data) -> None:
         """
-        Compute/show peaks for the selected run (useful for corrected/imported runs).
-        Acts as a toggle: if peaks are currently visible, hide them; otherwise compute
-        (if needed) and show them.
+        Toggle plot markers for peaks for the selected run. The per-run
+        history label shows the peak summary and remains unchanged by the toggle.
         """
 
         run = self._history_by_id.get(user_data)
@@ -424,9 +423,9 @@ class ControlInterface:
             return
 
         peaks_tag = f"peaks_{run['id']}"
-        tooltip_tag = f"{peaks_tag}_tooltip_text"
+        peaks_label_tag = f"hist_peaks_text_{run['id']}"
 
-        # Determine current visibility of the peaks series (best-effort).
+        # Determine current visibility of the peaks series
         visible = False
         if dpg.does_item_exist(peaks_tag):
             try:
@@ -435,27 +434,20 @@ class ControlInterface:
             except Exception:
                 visible = True
 
-        # If currently visible -> hide and clear tooltip/result text.
         if visible:
+            # hide markers only
             if dpg.does_item_exist(peaks_tag):
                 try:
                     dpg.configure_item(peaks_tag, show=False)
                 except Exception:
                     pass
-            if dpg.does_item_exist(tooltip_tag):
-                try:
-                    dpg.set_value(tooltip_tag, "")
-                except Exception:
-                    pass
-            dpg.set_value("resultado_maximo", "")
             self.log(f"[PEAKS] Ocultados picos de {run['label']}")
             return
 
-        # Otherwise we need to show: ensure there are measurements
+        # show markers: ensure measurements exist
         measurements = run.get("measurements") or []
         if not measurements:
             self.log("[PEAKS] Esa corrida no tiene mediciones para calcular picos")
-            dpg.set_value("resultado_maximo", "No hay mediciones para calcular picos.")
             return
 
         # Use precomputed peaks if present, otherwise compute them now.
@@ -469,7 +461,18 @@ class ControlInterface:
             run["peaks"] = peaks
             run["peak"] = peaks[0] if peaks else None
 
-        # Update / create scatter series and show it
+            # update history label because we just computed peaks
+            if dpg.does_item_exist(peaks_label_tag):
+                if peaks:
+                    summary = "; ".join(
+                        f"{idx}. {p.voltage_v:.4f}V@{p.position_mm:.2f}mm"
+                        for idx, p in enumerate(peaks[:5], start=1)
+                    )
+                    dpg.set_value(peaks_label_tag, summary)
+                else:
+                    dpg.set_value(peaks_label_tag, "")
+
+        # Update/create scatter series and show it
         xs = [p.position_mm for p in peaks]
         ys = [p.voltage_v for p in peaks]
         if dpg.does_item_exist(peaks_tag):
@@ -477,7 +480,6 @@ class ControlInterface:
                 dpg.set_value(peaks_tag, [xs, ys])
                 dpg.configure_item(peaks_tag, show=bool(peaks))
             except Exception:
-                # if runtime update fails, try recreating series
                 try:
                     dpg.delete_item(peaks_tag)
                 except Exception:
@@ -488,38 +490,8 @@ class ControlInterface:
             if peaks:
                 dpg.add_scatter_series(xs, ys, label=f"{run['label']} peaks", parent="voltage_axis", tag=peaks_tag)
 
-        # Ensure tooltip text item exists and update it
-        if not dpg.does_item_exist(tooltip_tag):
-            try:
-                with dpg.tooltip(peaks_tag):
-                    dpg.add_text("", tag=tooltip_tag)
-            except Exception:
-                # if tooltip creation fails, continue without it
-                pass
-
-        if dpg.does_item_exist(tooltip_tag):
-            try:
-                if peaks:
-                    tooltip_lines = [
-                        f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm"
-                        for idx, p in enumerate(peaks[:10], start=1)
-                    ]
-                    dpg.set_value(tooltip_tag, "\n".join(tooltip_lines))
-                else:
-                    dpg.set_value(tooltip_tag, "No se encontraron picos.")
-            except Exception:
-                pass
-
-        # Update history text and result box
+        # Update history main label (shows primary peak)
         self.update_history_text(run)
-
-        if not peaks:
-            dpg.set_value("resultado_maximo", "No se encontraron picos.")
-        else:
-            lines = ["Picos (locales):"]
-            for idx, p in enumerate(peaks[:5], start=1):
-                lines.append(f"{idx}. {p.voltage_v:.4f} V @ {p.position_mm:.4f} mm")
-            dpg.set_value("resultado_maximo", "\n".join(lines))
 
         self.log(f"[PEAKS] Calculados/mostrados {len(peaks)} picos para {run['label']}")
 
