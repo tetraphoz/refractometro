@@ -246,18 +246,6 @@ class ControlInterface:
                     )
         return theme_tag
 
-    def _add_side_legend_entry(self, run: RunRecord) -> None:
-        """Add one color-matched curve label outside the plot."""
-        if not dpg.does_item_exist("leyenda_lista"):
-            return
-        dpg.add_text(
-            run.label,
-            color=self._curve_color(run.id),
-            tag=f"leyenda_{run.id}",
-            parent="leyenda_lista",
-            wrap=250,
-        )
-
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
         # Configure the buttons of a history row (do not touch peak labels here).
         tags = [
@@ -715,7 +703,6 @@ class ControlInterface:
 
         self.update_history_text(run)
         dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
-        self._add_side_legend_entry(run)
 
     def _add_run_context_actions(self, run: RunRecord, *, tagged: bool) -> None:
         """Add the same context actions to every interactive history cell."""
@@ -821,10 +808,6 @@ class ControlInterface:
 
         if dpg.does_item_exist(run.row_tag):
             dpg.delete_item(run.row_tag)
-
-        legend_tag = f"leyenda_{run.id}"
-        if dpg.does_item_exist(legend_tag):
-            dpg.delete_item(legend_tag)
 
         self._run_history.remove(run)
 
@@ -2306,6 +2289,9 @@ class ControlInterface:
                             height=800,
                             width=-1,
                         ):
+                            # DearPyGui exposes this native legend through the
+                            # plot context menu (right click) when needed.
+                            dpg.add_plot_legend(tag="plot_legend", show=False)
                             dpg.add_plot_axis(
                                 dpg.mvXAxis,
                                 label="Posición (mm)",
@@ -2324,40 +2310,12 @@ class ControlInterface:
                                 tag="voltage_axis",
                             )
 
-                        with dpg.table(
-                            header_row=False,
-                            borders_innerV=True,
-                            resizable=True,
-                            policy=dpg.mvTable_SizingStretchProp,
+                        with dpg.child_window(
+                            tag="registro_panel",
                             height=200,
+                            border=True,
                         ):
-                            dpg.add_table_column(init_width_or_weight=0.72)
-                            dpg.add_table_column(init_width_or_weight=0.28)
-                            with dpg.table_row():
-                                with (
-                                    dpg.table_cell(),
-                                    dpg.child_window(
-                                        height=200,
-                                        border=True,
-                                    ),
-                                ):
-                                    dpg.add_text("", tag="registro", wrap=520)
-                                with (
-                                    dpg.table_cell(),
-                                    dpg.child_window(
-                                        tag="leyenda_lateral",
-                                        height=200,
-                                        border=True,
-                                    ),
-                                ):
-                                    dpg.add_text("Leyenda de curvas")
-                                    dpg.add_separator()
-                                    with dpg.child_window(
-                                        tag="leyenda_lista",
-                                        height=160,
-                                        border=False,
-                                    ):
-                                        pass
+                            dpg.add_text("", tag="registro", wrap=520)
 
         set_connection_button_visual(
             "conectar_esp32_btn",
