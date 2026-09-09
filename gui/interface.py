@@ -28,6 +28,7 @@ from app.run_processing import (
 )
 from app.run_repository import RunRepository
 from app.session_processing import average_session_run, calibration_session_run
+from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import BatchProgress, MeasurementPoint
 from gui.plot_view import update_curve
 from gui.themes import DANGER_THEME, create_button_themes, set_connection_button_visual
@@ -121,22 +122,51 @@ class ControlInterface:
         )
 
     def _update_plot_hover_information(self) -> None:
-        """Identify the curve below the cursor without covering the plot."""
+        """Identify the nearest visible curve using plot-space coordinates."""
         if not dpg.does_item_exist("curva_hover_tooltip"):
             return
-        hovered_run = next(
-            (
-                run
-                for run in reversed(self._run_history.runs)
-                if dpg.does_item_exist(run.curve_tag)
-                and dpg.is_item_hovered(run.curve_tag)
-            ),
-            None,
-        )
-        if hovered_run is None:
+        try:
+            if not dpg.is_item_hovered("voltage_plot"):
+                dpg.configure_item("curva_hover_tooltip", show=False)
+                return
+            position_mm, voltage_v = dpg.get_plot_mouse_pos()
+            x_min, x_max = dpg.get_axis_limits("position_axis")
+            y_min, y_max = dpg.get_axis_limits("voltage_axis")
+            _, plot_height = dpg.get_item_rect_size("voltage_plot")
+        except (KeyError, RuntimeError):
             dpg.configure_item("curva_hover_tooltip", show=False)
             return
 
+        if x_max <= x_min or y_max <= y_min:
+            return
+        tolerance_v = (y_max - y_min) * 14 / max(plot_height, 1)
+        hovered_run = None
+        smallest_difference = tolerance_v
+        for run in reversed(self._run_history.runs):
+            if not run.measurements or not dpg.does_item_exist(run.curve_tag):
+                continue
+            if not dpg.get_item_configuration(run.curve_tag).get("show", True):
+                continue
+            curve = CalibrationCurve(run.measurements)
+            if (
+                not curve.measurements[0].position_mm
+                <= position_mm
+                <= curve.measurements[-1].position_mm
+            ):
+                continue
+            expected_voltage = curve.interpolate(
+                [point.position_mm for point in curve.measurements],
+                [point.voltage_v for point in curve.measurements],
+                position_mm,
+            )
+            difference = abs(voltage_v - expected_voltage)
+            if difference <= smallest_difference:
+                hovered_run = run
+                smallest_difference = difference
+
+        if hovered_run is None:
+            dpg.configure_item("curva_hover_tooltip", show=False)
+            return
         dpg.set_value("curva_hover", f"Curva: {hovered_run.label}")
         mouse_x, mouse_y = dpg.get_mouse_pos(local=False)
         dpg.configure_item(
