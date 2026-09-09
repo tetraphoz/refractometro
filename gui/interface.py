@@ -28,7 +28,11 @@ from app.run_processing import (
     subtract_reference,
 )
 from app.run_repository import RunRepository
-from app.session_processing import average_session_run, calibration_session_run
+from app.session_processing import (
+    average_session_run,
+    calibration_session_run,
+    corrected_session_run,
+)
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import BatchProgress, BatchRunFailure, MeasurementPoint
 from gui.plot_view import update_curve
@@ -109,6 +113,7 @@ class ControlInterface:
         # Corrida seleccionada para corregir, mientras el modal de
         # selección de blanco está abierto.
         self._run_a_corregir: RunRecord | None = None
+        self._correction_reference_options: dict[str, RunRecord] = {}
 
         # Estado transitorio de la adquisición de un lote. Las corridas y la
         # sesión se persisten inmediatamente; estos mapas solo conectan los
@@ -1552,37 +1557,55 @@ class ControlInterface:
             self.log("[CORRECCIÓN] Esa corrida todavía no tiene mediciones")
             return
 
-        opciones = [
-            r.label
-            for r in self._run_history.runs
-            if (
-                r.id != run.id
-                and r is not self._run_history.active_run
-                and r.measurements
-            )
+        references = [
+            candidate
+            for candidate in self._run_history.runs
+            if candidate.id != run.id
+            and candidate is not self._run_history.active_run
+            and candidate.measurements
+            and candidate.status is RunStatus.COMPLETED
         ]
+        if run.analysis_kind == "session_average":
+            try:
+                sample_protocol = SweepProtocol.from_parameters(
+                    run.analysis_parameters.get("protocol", {})
+                )
+                references = [
+                    candidate
+                    for candidate in references
+                    if candidate.analysis_kind == "calibration_average"
+                    and SweepProtocol.from_parameters(
+                        candidate.analysis_parameters.get("protocol", {})
+                    )
+                    == sample_protocol
+                ]
+            except ValueError as exc:
+                self.log(f"[CORRECCIÓN ERROR] Promedio sin protocolo válido: {exc}")
+                return
 
+        self._correction_reference_options = {
+            f"{reference.label} [{reference.uid[:8]}]": reference
+            for reference in references
+        }
+        opciones = list(self._correction_reference_options)
         if not opciones:
             self.log(
-                "[CORRECCIÓN] No hay otra corrida disponible como "
+                "[CORRECCIÓN] No hay una calibración promedio compatible " "disponible"
+                if run.analysis_kind == "session_average"
+                else "[CORRECCIÓN] No hay otra corrida disponible como "
                 "referencia (blanco sin muestra)"
             )
             return
 
         self._run_a_corregir = run
-
         dpg.configure_item("combo_blanco", items=opciones)
         dpg.set_value("combo_blanco", opciones[0])
-
-        dpg.set_value(
-            "texto_corregir",
-            f"Corrida a corregir: {run.label}",
-        )
-
+        dpg.set_value("texto_corregir", f"Corrida a corregir: {run.label}")
         dpg.show_item("modal_corregir")
 
     def cancel_correction(self) -> None:
         self._run_a_corregir = None
+        self._correction_reference_options = {}
         dpg.hide_item("modal_corregir")
 
     def apply_correction(self, sender, app_data) -> None:
@@ -1595,11 +1618,14 @@ class ControlInterface:
             return
 
         etiqueta_blanco = dpg.get_value("combo_blanco")
-
-        blanco = next(
-            (r for r in self._run_history.runs if r.label == etiqueta_blanco),
-            None,
-        )
+        reference_options = self._correction_reference_options
+        self._correction_reference_options = {}
+        blanco = reference_options.get(etiqueta_blanco)
+        if blanco is None:
+            blanco = next(
+                (r for r in self._run_history.runs if r.label == etiqueta_blanco),
+                None,
+            )
 
         if blanco is None:
             self.log(
@@ -1608,20 +1634,35 @@ class ControlInterface:
             return
 
         try:
-            corregidos = subtract_reference(run, blanco)
+            if run.analysis_kind == "session_average":
+                corrected = corrected_session_run(
+                    run,
+                    blanco,
+                    run_id=self._run_history.next_id,
+                    curve_tag="",
+                )
+                nuevo = self.create_computed_run(
+                    corrected.kind,
+                    corrected.label,
+                    corrected.measurements,
+                    source_uids=corrected.source_uids,
+                    analysis_kind=corrected.analysis_kind,
+                    analysis_parameters=corrected.analysis_parameters,
+                )
+            else:
+                corregidos = subtract_reference(run, blanco)
+                nuevo = self.create_computed_run(
+                    "corregido",
+                    f"Corregido #{self._run_history.next_id}: {run.label} − {blanco.label}",
+                    corregidos,
+                    source_uids=[run.uid, blanco.uid],
+                    analysis_kind="reference_subtraction",
+                    analysis_parameters={"interpolation": "linear"},
+                )
 
         except (ValueError, IndexError, RuntimeError) as exc:
             self.log(f"[CORRECCIÓN ERROR] {exc}")
             return
-
-        nuevo = self.create_computed_run(
-            "corregido",
-            f"Corregido #{self._run_history.next_id}: {run.label} − {blanco.label}",
-            corregidos,
-            source_uids=[run.uid, blanco.uid],
-            analysis_kind="reference_subtraction",
-            analysis_parameters={"interpolation": "linear"},
-        )
 
         self.log(f"[CORRECCIÓN] {nuevo.label} calculado")
 

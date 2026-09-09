@@ -50,6 +50,7 @@ selección de datos para un análisis.
 + [X] Identificar claramente una sesión como blanco/sin muestra.
 + [X] Crear la curva de calibración a partir del promedio de sus barridos.
 + [X] Evitar que una calibración se confunda con una corrida de muestra.
++ [X] Seleccionar una calibración promedio compatible para una muestra.
 + [ ] Guardar el UID de calibración en resultados corregidos y reportes.
 
 ** DONE Corregir y analizar una sesión de muestra
