@@ -23,6 +23,7 @@ def test_run_history_creates_runs_with_stable_tags():
     assert history.counter == 1
     assert history.next_id == 2
     assert history.get(run_id) is run
+    assert history.get_by_uid(run.uid) is run
     assert history.runs == [run]
     assert run.row_tag == "historial_fila_1"
     assert run.text_tag == "historial_texto_1"

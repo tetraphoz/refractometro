@@ -106,11 +106,11 @@ selección de datos para un análisis.
 + [ ] Diseñar la interfaz para que una sesión pueda repetirse sin ambigüedad.
 
 ** TODO Visualizar la proveniencia de resultados derivados
-+ [ ] Mostrar las corridas fuente de un promedio.
-+ [ ] Mostrar el lote y la calibración usados por una corrección.
-+ [ ] Mostrar parámetros de adquisición, promedio y detección de picos.
++ [X] Mostrar las corridas fuente de un promedio.
++ [X] Mostrar el lote y la calibración usados por una corrección.
++ [X] Mostrar parámetros de adquisición, promedio y detección de picos.
 + [ ] Mostrar un grafo de dependencias entre corridas y resultados.
-+ [ ] Evitar eliminar fuentes necesarias sin advertir sobre sus derivados.
++ [X] Evitar eliminar fuentes necesarias sin advertir sobre sus derivados.
 
 * v3 — Reproducibilidad y datos de laboratorio
 

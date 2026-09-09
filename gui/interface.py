@@ -141,6 +141,7 @@ class ControlInterface:
             f"hist_eliminar_{run_id}",
             f"hist_peaks_{run_id}",
             f"hist_exportar_{run_id}",
+            f"hist_proveniencia_{run_id}",
         ]
         for tag in tags:
             if dpg.does_item_exist(tag):
@@ -566,6 +567,14 @@ class ControlInterface:
                 )
 
                 dpg.add_button(
+                    label="Origen",
+                    tag=f"hist_proveniencia_{run.id}",
+                    callback=self.show_run_provenance,
+                    user_data=run.id,
+                    width=60,
+                )
+
+                dpg.add_button(
                     label="X",
                     tag=f"hist_eliminar_{run.id}",
                     callback=self.on_click_delete_run,
@@ -681,6 +690,28 @@ class ControlInterface:
         else:
             self.log("[EXPORT] Error al exportar")
 
+    def show_run_provenance(self, _sender, _value, run_id: int) -> None:
+        """Show sources and reproducible analysis parameters for one result."""
+        run = self._run_history.get(run_id)
+        if run is None:
+            return
+
+        sources = [
+            self._run_history.get_by_uid(source_uid) for source_uid in run.source_uids
+        ]
+        source_text = (
+            "\n".join(
+                f"- {source.label if source is not None else source_uid} ({source_uid[:8]})"
+                for source_uid, source in zip(run.source_uids, sources)
+            )
+            or "- Sin fuentes derivadas"
+        )
+        parameters = json.dumps(run.analysis_parameters, indent=2, ensure_ascii=False)
+        dpg.set_value(
+            "resultado_maximo",
+            f"Proveniencia de {run.label}\nFuentes:\n{source_text}\nParámetros:\n{parameters}",
+        )
+
     def on_click_delete_run(self, sender, app_data, user_data) -> None:
         run = self._run_history.get(user_data)
 
@@ -689,6 +720,18 @@ class ControlInterface:
 
         if self._run_history.active_run is run:
             self.log("[HISTORIAL] No se puede eliminar una corrida en curso")
+            return
+
+        dependents = [
+            candidate
+            for candidate in self._run_history.runs
+            if run.uid in candidate.source_uids
+        ]
+        if dependents:
+            self.log(
+                "[HISTORIAL] No se puede eliminar una fuente usada por: "
+                + ", ".join(candidate.label for candidate in dependents)
+            )
             return
 
         self.delete_run(run)

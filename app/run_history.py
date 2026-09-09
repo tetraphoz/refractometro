@@ -108,6 +108,10 @@ class RunHistory:
     def get(self, run_id: int) -> RunRecord | None:
         return self._by_id.get(run_id)
 
+    def get_by_uid(self, run_uid: str) -> RunRecord | None:
+        """Return a run by its persistent provenance identifier."""
+        return self._by_uid.get(run_uid)
+
     def set_active(self, run: RunRecord | None) -> None:
         self._active_run = run
 
