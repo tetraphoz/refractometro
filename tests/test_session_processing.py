@@ -52,6 +52,17 @@ def test_completed_session_runs_excludes_non_completed_sources():
     assert completed_session_runs(session, [first, failed, last]) == [first, last]
 
 
+def test_completed_session_runs_skips_audited_exclusion():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
+    first = make_run(1, session.uid)
+    excluded = make_run(2, session.uid)
+    session.add_run_uid(first.uid)
+    session.add_run_uid(excluded.uid)
+    session.exclude_run(excluded.uid, "Lectura atípica")
+
+    assert completed_session_runs(session, [first, excluded]) == [first]
+
+
 def test_average_session_uses_explicit_session_sources():
     session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
     session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))

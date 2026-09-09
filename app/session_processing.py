@@ -28,6 +28,8 @@ def completed_session_runs(
             raise ValueError("Falta una corrida fuente de la sesión")
         if run.session_uid != session.uid:
             raise ValueError("La corrida fuente pertenece a otra sesión")
+        if run.uid in session.excluded_runs:
+            continue
         if run.status is RunStatus.COMPLETED and run.measurements:
             completed_runs.append(run)
 

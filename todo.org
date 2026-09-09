@@ -42,6 +42,7 @@ selección de datos para un análisis.
 + [X] Guardar los parámetros del promedio: cantidad de fuentes, rango,
 +  resolución e interpolación.
 + [X] Calcular desviación estándar y cantidad de observaciones por posición.
++ [X] Permitir revisar, excluir y reincorporar corridas con una razón explícita.
 + [X] Hacer visible la diferencia entre datos crudos y resultado promedio.
 
 ** TODO Crear calibraciones a partir de lotes sin muestra

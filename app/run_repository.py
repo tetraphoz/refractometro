@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     expected_runs INTEGER NOT NULL,
     protocol_parameters TEXT NOT NULL DEFAULT '{}',
     laboratory_metadata TEXT NOT NULL DEFAULT '{}',
+    excluded_runs TEXT NOT NULL DEFAULT '{}',
     created_at REAL NOT NULL
 );
 
@@ -117,6 +118,10 @@ class RunRepository:
             self._connection.execute(
                 "ALTER TABLE sessions ADD COLUMN laboratory_metadata TEXT NOT NULL DEFAULT '{}'"
             )
+        if "excluded_runs" not in columns:
+            self._connection.execute(
+                "ALTER TABLE sessions ADD COLUMN excluded_runs TEXT NOT NULL DEFAULT '{}'"
+            )
 
     def save_session(self, session: MeasurementSession) -> None:
         """Insert or update a laboratory session without its raw runs."""
@@ -125,8 +130,8 @@ class RunRepository:
                 """
                 INSERT INTO sessions (
                     uid, status, kind, label, expected_runs,
-                    protocol_parameters, laboratory_metadata, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    protocol_parameters, laboratory_metadata, excluded_runs, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(uid) DO UPDATE SET
                     status = excluded.status,
                     kind = excluded.kind,
@@ -134,6 +139,7 @@ class RunRepository:
                     expected_runs = excluded.expected_runs,
                     protocol_parameters = excluded.protocol_parameters,
                     laboratory_metadata = excluded.laboratory_metadata,
+                    excluded_runs = excluded.excluded_runs,
                     created_at = excluded.created_at
                 """,
                 (
@@ -144,6 +150,7 @@ class RunRepository:
                     session.expected_runs,
                     json.dumps(session.protocol_parameters),
                     json.dumps(session.laboratory_metadata),
+                    json.dumps(session.excluded_runs),
                     session.created_at,
                 ),
             )
@@ -306,6 +313,7 @@ class RunRepository:
             expected_runs=row["expected_runs"],
             protocol_parameters=json.loads(row["protocol_parameters"]),
             laboratory_metadata=json.loads(row["laboratory_metadata"]),
+            excluded_runs=json.loads(row["excluded_runs"]),
             created_at=row["created_at"],
             run_uids=[run["uid"] for run in run_uids],
         )

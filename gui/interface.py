@@ -116,6 +116,7 @@ class ControlInterface:
         self._batch_runs: dict[int, RunRecord] = {}
         self._session_history_groups: dict[str, str] = {}
         self._selected_run_ids: set[int] = set()
+        self._run_pending_exclusion: tuple[str, str] | None = None
 
     # Helpers
     def log(
@@ -650,6 +651,75 @@ class ControlInterface:
             dpg.configure_item(header_tag, label=name)
         self.log(f"[LOTE] Nombre actualizado: {name}")
 
+    def request_run_exclusion(
+        self,
+        _sender,
+        _value,
+        source: tuple[str | None, str],
+    ) -> None:
+        """Open an audit dialog before excluding a raw run from an average."""
+        session_uid, run_uid = source
+        if session_uid is None or self._repository.get_session(session_uid) is None:
+            self.log("[PROMEDIO ERROR] La corrida no pertenece a un lote")
+            return
+        self._run_pending_exclusion = (session_uid, run_uid)
+        dpg.set_value("texto_exclusion", "Indique por qué se excluye la corrida:")
+        dpg.set_value("razon_exclusion", "")
+        dpg.show_item("modal_exclusion")
+
+    def cancel_run_exclusion(self) -> None:
+        self._run_pending_exclusion = None
+        dpg.hide_item("modal_exclusion")
+
+    def confirm_run_exclusion(self) -> None:
+        pending = self._run_pending_exclusion
+        self._run_pending_exclusion = None
+        dpg.hide_item("modal_exclusion")
+        if pending is None:
+            return
+        session_uid, run_uid = pending
+        reason = dpg.get_value("razon_exclusion").strip()
+        session = self._repository.get_session(session_uid)
+        if session is None:
+            self.log("[PROMEDIO ERROR] No se encontró la sesión")
+            return
+        try:
+            session.exclude_run(run_uid, reason)
+            self._repository.save_session(session)
+        except ValueError as exc:
+            self.log(f"[PROMEDIO ERROR] {exc}")
+            return
+        run = self._run_history.get_by_uid(run_uid)
+        if run is not None:
+            self.update_history_text(run)
+        self._update_context_menu_visibility()
+        self.log(f"[PROMEDIO] Corrida excluida: {reason}")
+
+    def include_run_in_average(
+        self,
+        _sender,
+        _value,
+        source: tuple[str | None, str],
+    ) -> None:
+        session_uid, run_uid = source
+        if session_uid is None:
+            return
+        session = self._repository.get_session(session_uid)
+        if session is None:
+            self.log("[PROMEDIO ERROR] No se encontró la sesión")
+            return
+        try:
+            session.include_run(run_uid)
+            self._repository.save_session(session)
+        except ValueError as exc:
+            self.log(f"[PROMEDIO ERROR] {exc}")
+            return
+        run = self._run_history.get_by_uid(run_uid)
+        if run is not None:
+            self.update_history_text(run)
+        self._update_context_menu_visibility()
+        self.log("[PROMEDIO] Corrida reincorporada")
+
     def create_session_average(self, _sender, _value, session_uid: str) -> None:
         """Derive an average or calibration from this explicit batch only."""
         session = self._repository.get_session(session_uid)
@@ -853,6 +923,8 @@ class ControlInterface:
             "hist_proveniencia",
             "hist_exportar",
             "hist_eliminar",
+            "hist_excluir",
+            "hist_reincorporar",
         )
         bulk_prefixes = (
             "hist_menu_bulk_start",
@@ -871,6 +943,19 @@ class ControlInterface:
                     tag = f"{prefix}{suffix}"
                     if dpg.does_item_exist(tag):
                         dpg.configure_item(tag, show=not multiple_selected)
+                session = (
+                    self._repository.get_session(run.session_uid)
+                    if run.session_uid is not None
+                    else None
+                )
+                excluded = bool(session and run.uid in session.excluded_runs)
+                for prefix, show in (
+                    ("hist_excluir", not excluded),
+                    ("hist_reincorporar", excluded),
+                ):
+                    tag = f"{prefix}{suffix}"
+                    if dpg.does_item_exist(tag):
+                        dpg.configure_item(tag, show=show and not multiple_selected)
                 for prefix in bulk_prefixes:
                     tag = f"{prefix}{suffix}"
                     if dpg.does_item_exist(tag):
@@ -924,6 +1009,18 @@ class ControlInterface:
                 callback=callback,
                 user_data=run.id,
             )
+        dpg.add_menu_item(
+            label="Excluir de promedio",
+            tag=f"hist_excluir{suffix}",
+            callback=self.request_run_exclusion,
+            user_data=(run.session_uid, run.uid),
+        )
+        dpg.add_menu_item(
+            label="Reincorporar a promedio",
+            tag=f"hist_reincorporar{suffix}",
+            callback=self.include_run_in_average,
+            user_data=(run.session_uid, run.uid),
+        )
         dpg.add_separator(tag=f"hist_menu_bulk_start{suffix}")
         dpg.add_text("Filas seleccionadas", tag=f"hist_bulk_selection{suffix}")
         dpg.add_menu_item(
@@ -972,6 +1069,11 @@ class ControlInterface:
         }[run.status]
         if run.failure_reason:
             status_text = f"{status_text}: {run.failure_reason}"
+        if run.session_uid is not None:
+            session = self._repository.get_session(run.session_uid)
+            exclusion_reason = session.excluded_runs.get(run.uid) if session else None
+            if exclusion_reason:
+                status_text = f"Excluida: {exclusion_reason}"
         peak_text = format_peak_summary(run.peaks, limit=1) if run.peaks else "—"
 
         if dpg.does_item_exist(run.text_tag):
@@ -2144,6 +2246,31 @@ class ControlInterface:
             height=400,
         ):
             dpg.add_file_extension(".csv")
+
+        with dpg.window(
+            label="Excluir corrida del promedio",
+            modal=True,
+            show=False,
+            tag="modal_exclusion",
+            width=460,
+            height=180,
+            no_resize=True,
+        ):
+            dpg.add_text("", tag="texto_exclusion")
+            dpg.add_input_text(
+                tag="razon_exclusion",
+                hint="Razón obligatoria",
+                width=-1,
+            )
+            with dpg.group(horizontal=True):
+                dpg.add_button(
+                    label="Excluir",
+                    callback=self.confirm_run_exclusion,
+                )
+                dpg.add_button(
+                    label="Cancelar",
+                    callback=self.cancel_run_exclusion,
+                )
 
         with dpg.window(
             label="Corregir corrida",

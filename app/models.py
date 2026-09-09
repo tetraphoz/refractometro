@@ -183,6 +183,7 @@ class MeasurementSession:
     run_uids: list[str] = field(default_factory=list)
     protocol_parameters: dict[str, object] = field(default_factory=dict)
     laboratory_metadata: dict[str, object] = field(default_factory=dict)
+    excluded_runs: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.expected_runs < 1:
@@ -219,6 +220,21 @@ class MeasurementSession:
     def sweep_protocol(self) -> SweepProtocol:
         """Return the persisted typed acquisition settings for the session."""
         return SweepProtocol.from_parameters(self.protocol_parameters)
+
+    def exclude_run(self, run_uid: str, reason: str) -> None:
+        """Exclude one attached raw run with an auditable reason."""
+        if run_uid not in self.run_uids:
+            raise ValueError("La corrida no pertenece a esta sesión")
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ValueError("La exclusión necesita una razón explícita")
+        self.excluded_runs[run_uid] = normalized_reason
+
+    def include_run(self, run_uid: str) -> None:
+        """Reinstate a previously excluded raw run."""
+        if run_uid not in self.run_uids:
+            raise ValueError("La corrida no pertenece a esta sesión")
+        self.excluded_runs.pop(run_uid, None)
 
     def add_run_uid(self, run_uid: str) -> None:
         """Attach a raw run once, preserving acquisition order."""
