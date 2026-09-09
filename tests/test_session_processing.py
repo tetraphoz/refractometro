@@ -13,7 +13,9 @@ from app.session_processing import (
     average_session,
     average_session_run,
     calibration_from_session,
+    calibration_session_run,
     completed_session_runs,
+    corrected_session_run,
 )
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -116,6 +118,103 @@ def test_calibration_from_session_requires_calibration_kind():
 
     with pytest.raises(ValueError, match="de calibración"):
         calibration_from_session(session, [])
+
+
+def test_calibration_session_run_is_a_distinct_derived_calibration():
+    session = MeasurementSession("Blanco", SessionKind.CALIBRATION, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
+    first = make_run(1, session.uid)
+    second = make_run(3, session.uid)
+    session.add_run_uid(first.uid)
+    session.add_run_uid(second.uid)
+
+    calibration = calibration_session_run(
+        session,
+        [first, second],
+        run_id=10,
+        curve_tag="curve-10",
+    )
+
+    assert calibration.kind == "calibracion"
+    assert calibration.analysis_kind == "calibration_average"
+    assert calibration.source_uids == [first.uid, second.uid]
+
+
+def test_corrected_session_run_subtracts_a_compatible_calibration():
+    protocol = SweepProtocol(0.0, 1.0, 2, 0.1)
+    sample_session = MeasurementSession("Muestra", SessionKind.SAMPLE, expected_runs=2)
+    sample_session.set_sweep_protocol(protocol)
+    sample_first = make_run(3, sample_session.uid)
+    sample_second = make_run(5, sample_session.uid)
+    sample_session.add_run_uid(sample_first.uid)
+    sample_session.add_run_uid(sample_second.uid)
+    sample_average = average_session_run(
+        sample_session,
+        [sample_first, sample_second],
+        run_id=10,
+        curve_tag="curve-10",
+    )
+
+    calibration_session = MeasurementSession(
+        "Blanco", SessionKind.CALIBRATION, expected_runs=2
+    )
+    calibration_session.set_sweep_protocol(protocol)
+    calibration_first = make_run(1, calibration_session.uid)
+    calibration_second = make_run(3, calibration_session.uid)
+    calibration_session.add_run_uid(calibration_first.uid)
+    calibration_session.add_run_uid(calibration_second.uid)
+    calibration = calibration_session_run(
+        calibration_session,
+        [calibration_first, calibration_second],
+        run_id=11,
+        curve_tag="curve-11",
+    )
+
+    corrected = corrected_session_run(
+        sample_average,
+        calibration,
+        run_id=12,
+        curve_tag="curve-12",
+    )
+
+    assert corrected.measurements == [
+        MeasurementPoint(0.0, 2.0),
+        MeasurementPoint(1.0, 2.0),
+    ]
+    assert corrected.source_uids == [sample_average.uid, calibration.uid]
+    assert corrected.analysis_parameters["correction_order"] == (
+        "average_then_subtract_calibration"
+    )
+
+
+def test_corrected_session_run_rejects_an_incompatible_calibration():
+    sample = RunRecord(
+        id=1,
+        kind="promedio",
+        label="Muestra",
+        curve_tag="curve-1",
+        measurements=[MeasurementPoint(0.0, 1.0)],
+        status=RunStatus.COMPLETED,
+        analysis_kind="session_average",
+        analysis_parameters={
+            "protocol": SweepProtocol(0.0, 1.0, 2, 0.1).as_parameters()
+        },
+    )
+    calibration = RunRecord(
+        id=2,
+        kind="calibracion",
+        label="Blanco",
+        curve_tag="curve-2",
+        measurements=[MeasurementPoint(0.0, 1.0)],
+        status=RunStatus.COMPLETED,
+        analysis_kind="calibration_average",
+        analysis_parameters={
+            "protocol": SweepProtocol(0.0, 2.0, 2, 0.1).as_parameters()
+        },
+    )
+
+    with pytest.raises(ValueError, match="no es compatible"):
+        corrected_session_run(sample, calibration, run_id=3, curve_tag="curve-3")
 
 
 def test_calibration_from_session_averages_calibration_runs():

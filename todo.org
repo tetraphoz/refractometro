@@ -57,12 +57,12 @@ selección de datos para un análisis.
 + [ ] Seleccionar la calibración usada por una sesión de muestra.
 + [ ] Guardar el UID de calibración en resultados corregidos y reportes.
 
-** TODO Corregir y analizar una sesión de muestra
-+ [ ] Aplicar la calibración promedio seleccionada al promedio de la muestra.
-+ [ ] Conservar la curva cruda, el promedio, la calibración y la curva corregida.
-+ [ ] Guardar los UID y parámetros de todas las fuentes del resultado.
-+ [ ] Definir si la corrección ocurre antes o después del promedio y documentarlo.
-+ [ ] Evitar producir un resultado si no existe una calibración compatible.
+** DONE Corregir y analizar una sesión de muestra
++ [X] Aplicar la calibración promedio seleccionada al promedio de la muestra.
++ [X] Conservar la curva cruda, el promedio, la calibración y la curva corregida.
++ [X] Guardar los UID y parámetros de todas las fuentes del resultado.
++ [X] Definir si la corrección ocurre antes o después del promedio y documentarlo.
++ [X] Evitar producir un resultado si no existe una calibración compatible.
 
 * v3 — Detección del cambio de índice de refracción
 

@@ -115,6 +115,79 @@ def average_session_run(
     )
 
 
+def calibration_session_run(
+    session: MeasurementSession,
+    runs: Iterable[RunRecord],
+    *,
+    run_id: int,
+    curve_tag: str,
+) -> RunRecord:
+    """Create a derived calibration run from an averaged no-sample session."""
+    if session.kind is not SessionKind.CALIBRATION:
+        raise ValueError("La sesión debe ser de calibración")
+
+    calibration = average_session_run(
+        session,
+        runs,
+        run_id=run_id,
+        curve_tag=curve_tag,
+    )
+    calibration.kind = "calibracion"
+    calibration.label = f"Calibración promedio de {session.label}"
+    calibration.analysis_kind = "calibration_average"
+    return calibration
+
+
+def corrected_session_run(
+    sample_average: RunRecord,
+    calibration: RunRecord,
+    *,
+    run_id: int,
+    curve_tag: str,
+) -> RunRecord:
+    """Subtract a compatible averaged calibration from an averaged sample."""
+    if sample_average.analysis_kind != "session_average":
+        raise ValueError("La muestra debe ser un promedio de sesión")
+    if calibration.analysis_kind != "calibration_average":
+        raise ValueError("La referencia debe ser una calibración promedio")
+    if (
+        sample_average.status is not RunStatus.COMPLETED
+        or calibration.status is not RunStatus.COMPLETED
+    ):
+        raise ValueError("La muestra y la calibración deben estar completadas")
+
+    sample_protocol = SweepProtocol.from_parameters(
+        sample_average.analysis_parameters.get("protocol", {})
+    )
+    calibration_protocol = SweepProtocol.from_parameters(
+        calibration.analysis_parameters.get("protocol", {})
+    )
+    if sample_protocol != calibration_protocol:
+        raise ValueError("La calibración no es compatible con el protocolo de muestra")
+
+    measurements = CalibrationCurve(calibration.measurements).subtract(
+        sample_average.measurements
+    )
+    return RunRecord(
+        id=run_id,
+        kind="corregido",
+        label=f"Corregido de {sample_average.label}",
+        curve_tag=curve_tag,
+        measurements=measurements,
+        expected_points=len(measurements),
+        status=RunStatus.COMPLETED,
+        source_uids=[sample_average.uid, calibration.uid],
+        analysis_kind="calibration_corrected",
+        analysis_parameters={
+            "analysis_version": "v3",
+            "correction_order": "average_then_subtract_calibration",
+            "sample_average_uid": sample_average.uid,
+            "calibration_uid": calibration.uid,
+            "protocol": sample_protocol.as_parameters(),
+        },
+    )
+
+
 def calibration_from_session(
     session: MeasurementSession,
     runs: Iterable[RunRecord],
