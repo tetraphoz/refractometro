@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import sqlite3
 
-from app.models import RunRecord
+import pytest
+
+from app.models import MeasurementSession, RunRecord, SessionKind, SessionStatus
 from app.run_repository import RunRepository
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -105,6 +107,48 @@ def test_repository_completes_pre_provenance_schema(tmp_path):
     assert loaded.analysis_kind is None
     assert loaded.analysis_parameters == {}
     repository.save(make_run())
+    repository.close()
+
+
+def test_repository_persists_sessions_and_their_raw_runs(tmp_path):
+    repository = RunRepository(tmp_path / "runs.sqlite3")
+    session = MeasurementSession(
+        label="Muestra A",
+        kind=SessionKind.SAMPLE,
+        expected_runs=2,
+        protocol_parameters={"number_of_points": 20},
+    )
+    run = make_run()
+
+    repository.save_session(session)
+    repository.save(run)
+    repository.attach_run_to_session(run, session)
+
+    loaded = repository.get_session(session.uid)
+    loaded_run = repository.get(run.id)
+
+    assert loaded is not None
+    assert loaded.status is SessionStatus.PREPARED
+    assert loaded.run_uids == [run.uid]
+    assert loaded.protocol_parameters == {"number_of_points": 20}
+    assert loaded_run is not None
+    assert loaded_run.session_uid == session.uid
+    repository.close()
+
+
+def test_repository_rejects_reassigning_run_to_another_session(tmp_path):
+    repository = RunRepository(tmp_path / "runs.sqlite3")
+    first = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=1)
+    second = MeasurementSession("Muestra B", SessionKind.SAMPLE, expected_runs=1)
+    run = make_run()
+
+    repository.save_session(first)
+    repository.save_session(second)
+    repository.save(run)
+    repository.attach_run_to_session(run, first)
+
+    with pytest.raises(ValueError, match="otra sesión"):
+        repository.attach_run_to_session(run, second)
     repository.close()
 
 

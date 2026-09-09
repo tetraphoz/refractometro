@@ -15,7 +15,7 @@ selección de datos para un análisis.
 * v3 — Flujo de laboratorio (prioridad inmediata)
 
 ** TODO Definir el modelo de una sesión de medición
-+ [ ] Distinguir corridas crudas, lotes de adquisición y resultados derivados.
++ [X] Distinguir corridas crudas, lotes de adquisición y resultados derivados.
 + [X] Identificar una sesión con un UID y conservar sus corridas fuente.
 + [X] Registrar el propósito de la sesión: muestra, blanco/calibración o control.
 + [X] Definir estados de sesión: preparada, adquiriendo, pausada, completada,

@@ -93,3 +93,4 @@ class RunRecord:
     source_uids: list[str] = field(default_factory=list)
     analysis_kind: str | None = None
     analysis_parameters: dict[str, object] = field(default_factory=dict)
+    session_uid: str | None = None
