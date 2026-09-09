@@ -80,11 +80,11 @@ selección de datos para un análisis.
 
 ** TODO Analizar calidad y repetibilidad
 + [X] Calcular desviación estándar de la curva promedio.
-+ [ ] Calcular variación de posición y voltaje del pico.
-+ [ ] Calcular relación señal/ruido.
-+ [ ] Detectar corridas atípicas con un criterio documentado.
-+ [ ] Mostrar intervalos de confianza o incertidumbre.
-+ [ ] Definir un estado de calidad para el lote y para el pico final.
++ [X] Calcular variación de posición y voltaje del pico.
++ [X] Calcular relación señal/ruido.
++ [X] Detectar corridas atípicas con un criterio documentado.
++ [X] Mostrar intervalos de confianza o incertidumbre.
++ [X] Definir un estado de calidad para el lote y para el pico final.
 + [ ] Permitir comparar lotes repetidos de la misma muestra.
 
 * v3 — Interfaz orientada al laboratorio

@@ -17,6 +17,7 @@ from app.models import (
     SweepProtocol,
 )
 from app.operation_state import OperationState, OperationStatus
+from app.quality import analyze_session_peak_quality
 from app.run_history import RunHistory
 from app.run_io import export_run_csv, import_run_csv
 from app.run_naming import run_filename
@@ -555,6 +556,12 @@ class ControlInterface:
                 user_data=session.uid,
                 width=-1,
             )
+            dpg.add_button(
+                label="Analizar calidad y repetibilidad",
+                callback=self.analyze_session_quality,
+                user_data=session.uid,
+                width=-1,
+            )
             with dpg.table(
                 tag=runs_tag,
                 header_row=True,
@@ -719,6 +726,30 @@ class ControlInterface:
             self.update_history_text(run)
         self._update_context_menu_visibility()
         self.log("[PROMEDIO] Corrida reincorporada")
+
+    def analyze_session_quality(self, _sender, _value, session_uid: str) -> None:
+        """Review peak repeatability without changing analysis membership."""
+        session = self._repository.get_session(session_uid)
+        if session is None:
+            self.log("[CALIDAD ERROR] No se encontró la sesión")
+            return
+        try:
+            metrics = analyze_session_peak_quality(
+                self._repository.list_runs_for_session(session_uid)
+            )
+        except ValueError as exc:
+            self.log(f"[CALIDAD ERROR] {exc}")
+            return
+        outliers = len(metrics.outlier_uids)
+        snr = (
+            f"{metrics.signal_to_noise_ratio:.2f}"
+            if metrics.signal_to_noise_ratio is not None
+            else "n/d"
+        )
+        self.log(
+            f"[CALIDAD] {session.label}: estado={metrics.state}, "
+            f"corridas={len(metrics.measurements)}, atípicas={outliers}, S/R={snr}"
+        )
 
     def create_session_average(self, _sender, _value, session_uid: str) -> None:
         """Derive an average or calibration from this explicit batch only."""
