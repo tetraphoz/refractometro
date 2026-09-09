@@ -120,6 +120,40 @@ class ControlInterface:
             "\n".join(self._log_lines),
         )
 
+    def _update_plot_hover_information(self) -> None:
+        """Identify the curve below the cursor without covering the plot."""
+        if not dpg.does_item_exist("curva_hover_tooltip"):
+            return
+        hovered_run = next(
+            (
+                run
+                for run in reversed(self._run_history.runs)
+                if dpg.does_item_exist(run.curve_tag)
+                and dpg.is_item_hovered(run.curve_tag)
+            ),
+            None,
+        )
+        if hovered_run is None:
+            dpg.configure_item("curva_hover_tooltip", show=False)
+            return
+
+        dpg.set_value("curva_hover", f"Curva: {hovered_run.label}")
+        mouse_x, mouse_y = dpg.get_mouse_pos(local=False)
+        dpg.configure_item(
+            "curva_hover_tooltip",
+            pos=(mouse_x + 14, mouse_y + 14),
+            show=True,
+        )
+
+    def _update_log_wrap_width(self) -> None:
+        """Keep the log readable after the user resizes its table column."""
+        if not (
+            dpg.does_item_exist("registro") and dpg.does_item_exist("registro_panel")
+        ):
+            return
+        panel_width = dpg.get_item_rect_size("registro_panel")[0]
+        dpg.configure_item("registro", wrap=max(120, panel_width - 20))
+
     def _set_operation_buttons_enabled(self, enabled: bool) -> None:
         for tag in self.OPERATION_BUTTONS:
             if dpg.does_item_exist(tag):
@@ -139,11 +173,6 @@ class ControlInterface:
             in {OperationStatus.RUNNING, OperationStatus.PAUSED},
             label="Reanudar" if paused else "Pausar",
         )
-
-    def toggle_plot_legend(self, sender, value, user_data) -> None:
-        """Show or hide the scalable text legend beside the operation log."""
-        if dpg.does_item_exist("leyenda_lateral"):
-            dpg.configure_item("leyenda_lateral", show=value)
 
     @classmethod
     def _curve_color(cls, run_id: int) -> tuple[int, int, int, int]:
@@ -183,10 +212,6 @@ class ControlInterface:
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
         # Configure the buttons of a history row (do not touch peak labels here).
         tags = [
-            f"hist_guardar_{run_id}",
-            f"hist_corregir_{run_id}",
-            f"hist_eliminar_{run_id}",
-            f"hist_peaks_{run_id}",
             f"hist_guardar_{run_id}",
             f"hist_corregir_{run_id}",
             f"hist_peaks_{run_id}",
@@ -1893,6 +1918,18 @@ class ControlInterface:
             )
 
         with dpg.window(
+            tag="curva_hover_tooltip",
+            show=False,
+            no_title_bar=True,
+            no_resize=True,
+            no_move=True,
+            no_scrollbar=True,
+            no_collapse=True,
+            autosize=True,
+        ):
+            dpg.add_text("", tag="curva_hover")
+
+        with dpg.window(
             tag="ventana_principal",
             width=-1,
             height=-1,
@@ -2171,13 +2208,6 @@ class ControlInterface:
                             label="Historial",
                             default_open=True,
                         ):
-                            dpg.add_checkbox(
-                                label="Mostrar leyenda lateral",
-                                tag="mostrar_leyenda",
-                                default_value=True,
-                                callback=self.toggle_plot_legend,
-                            )
-
                             with dpg.child_window(
                                 tag="historial_lista",
                                 height=400,
@@ -2206,8 +2236,12 @@ class ControlInterface:
                             )
 
                     with dpg.table_cell():
+                        dpg.add_text(
+                            "Navegación: arrastra para desplazar; usa la rueda para zoom."
+                        )
                         with dpg.plot(
                             label="Voltaje vs Posición",
+                            tag="voltage_plot",
                             height=800,
                             width=-1,
                         ):
@@ -2232,6 +2266,7 @@ class ControlInterface:
                         with dpg.table(
                             header_row=False,
                             borders_innerV=True,
+                            resizable=True,
                             policy=dpg.mvTable_SizingStretchProp,
                             height=200,
                         ):
@@ -2245,13 +2280,7 @@ class ControlInterface:
                                         border=True,
                                     ),
                                 ):
-                                    dpg.add_input_text(
-                                        tag="registro",
-                                        multiline=True,
-                                        readonly=True,
-                                        width=-1,
-                                        height=-1,
-                                    )
+                                    dpg.add_text("", tag="registro", wrap=520)
                                 with (
                                     dpg.table_cell(),
                                     dpg.child_window(
@@ -2319,6 +2348,8 @@ class ControlInterface:
 
     def run(self):
         while dpg.is_dearpygui_running():
+            self._update_plot_hover_information()
+            self._update_log_wrap_width()
             dpg.render_dearpygui_frame()
 
     def close(
