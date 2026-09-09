@@ -418,7 +418,13 @@ class ControlInterface:
                 user_data=session.uid,
                 width=-1,
             )
-            dpg.add_group(tag=runs_tag)
+            with dpg.table(
+                tag=runs_tag,
+                header_row=True,
+                resizable=True,
+                policy=dpg.mvTable_SizingStretchProp,
+            ):
+                self._add_history_table_columns()
         self._session_history_groups[session.uid] = runs_tag
         return runs_tag
 
@@ -499,112 +505,104 @@ class ControlInterface:
         self.update_history_text(derived)
         self.log(f"[PROMEDIO] {derived.label} calculado")
 
+    def _add_history_table_columns(self) -> None:
+        dpg.add_table_column(label="Ver", init_width_or_weight=0.06)
+        dpg.add_table_column(label="Corrida", init_width_or_weight=0.25)
+        dpg.add_table_column(label="Estado", init_width_or_weight=0.12)
+        dpg.add_table_column(label="Pico", init_width_or_weight=0.2)
+        dpg.add_table_column(label="Acciones", init_width_or_weight=0.37)
+
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
-            return "historial_lista"
+            return "historial_general"
         session = self._repository.get_session(run.session_uid)
         if session is None:
-            return "historial_lista"
+            return "historial_general"
         return self._ensure_session_history_group(session)
 
     def add_history_row(self, run: RunRecord) -> None:
-        with dpg.group(tag=run.row_tag, parent=self._history_parent_for_run(run)):
-            # Top row: checkbox + run label
-            with dpg.group(horizontal=True):
+        """Render a compact run row in its batch or derived-results table."""
+        with dpg.table_row(tag=run.row_tag, parent=self._history_parent_for_run(run)):
+            with dpg.table_cell():
                 dpg.add_checkbox(
-                    label="Mostrar",
+                    label="",
                     default_value=True,
                     callback=self.toggle_run_visibility,
                     user_data=run.id,
                 )
-
-                dpg.add_text(
-                    run.label,
-                    tag=run.text_tag,
-                )
-
-            dpg.add_text(
-                "",
-                tag=f"hist_peaks_text_{run.id}",
-            )
-            dpg.add_text(
-                "",
-                tag=f"hist_laser_text_{run.id}",
-            )
-
-            # Buttons row (horizontal)
-            with dpg.group(horizontal=True):
+            with dpg.table_cell():
+                dpg.add_text(run.label, tag=run.text_tag)
+                dpg.add_text("", tag=f"hist_laser_text_{run.id}")
+            with dpg.table_cell():
+                dpg.add_text("", tag=f"hist_status_text_{run.id}")
+            with dpg.table_cell():
+                dpg.add_text("", tag=f"hist_peaks_text_{run.id}")
+            with dpg.table_cell(), dpg.group(horizontal=True):
                 dpg.add_button(
                     label="Guardar",
                     tag=f"hist_guardar_{run.id}",
                     callback=self.on_click_save_run,
                     user_data=run.id,
-                    width=70,
+                    width=55,
                 )
-
                 dpg.add_button(
                     label="Corregir",
                     tag=f"hist_corregir_{run.id}",
                     callback=self.on_click_correct_run,
                     user_data=run.id,
-                    width=70,
+                    width=58,
                 )
-
                 dpg.add_button(
                     label="Picos",
                     tag=f"hist_peaks_{run.id}",
                     callback=self.on_click_peaks,
                     user_data=run.id,
-                    width=60,
+                    width=48,
                 )
-
-                dpg.add_button(
-                    label="Exportar",
-                    tag=f"hist_exportar_{run.id}",
-                    callback=self.on_click_export_run,
-                    user_data=run.id,
-                    width=60,
-                )
-
                 dpg.add_button(
                     label="Origen",
                     tag=f"hist_proveniencia_{run.id}",
                     callback=self.show_run_provenance,
                     user_data=run.id,
-                    width=60,
+                    width=55,
                 )
-
+                dpg.add_button(
+                    label="PNG",
+                    tag=f"hist_exportar_{run.id}",
+                    callback=self.on_click_export_run,
+                    user_data=run.id,
+                    width=42,
+                )
                 dpg.add_button(
                     label="X",
                     tag=f"hist_eliminar_{run.id}",
                     callback=self.on_click_delete_run,
                     user_data=run.id,
-                    width=30,
+                    width=28,
                 )
 
-            # Ensure peaks button is enabled only if the run already has measurements
-            peaks_tag = f"hist_peaks_{run.id}"
-            if dpg.does_item_exist(peaks_tag):
-                dpg.configure_item(peaks_tag, enabled=bool(run.measurements))
-
-            dpg.add_separator()
+        self.update_history_text(run)
+        dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
 
     def update_history_text(self, run: RunRecord) -> None:
-        status_suffix = {
-            RunStatus.PENDING: " (pendiente)",
-            RunStatus.RUNNING: " (en curso)",
-            RunStatus.FAILED: " (fallida)",
-            RunStatus.CANCELLED: " (cancelada)",
-            RunStatus.INTERRUPTED: " (interrumpida)",
-        }.get(run.status, "")
-        texto = run.label + status_suffix
-
-        if run.peaks:
-            peak = run.peaks[0]
-            texto += f" — pico {peak.voltage_v:.4f}V" f" @ {peak.position_mm:.2f}mm"
+        status_text = {
+            RunStatus.PENDING: "Pendiente",
+            RunStatus.RUNNING: "En curso",
+            RunStatus.COMPLETED: "Completada",
+            RunStatus.FAILED: "Fallida",
+            RunStatus.CANCELLED: "Cancelada",
+            RunStatus.INTERRUPTED: "Interrumpida",
+        }[run.status]
+        peak_text = format_peak_summary(run.peaks, limit=1) if run.peaks else "—"
 
         if dpg.does_item_exist(run.text_tag):
-            dpg.set_value(run.text_tag, texto)
+            dpg.set_value(run.text_tag, run.label)
+        status_tag = f"hist_status_text_{run.id}"
+        if dpg.does_item_exist(status_tag):
+            dpg.set_value(status_tag, status_text)
+        peaks_tag = f"hist_peaks_text_{run.id}"
+        if dpg.does_item_exist(peaks_tag):
+            dpg.set_value(peaks_tag, peak_text)
 
         laser_text = ""
         if run.laser_on_time_s is not None:
@@ -2018,7 +2016,14 @@ class ControlInterface:
                                 height=400,
                                 border=True,
                             ):
-                                pass
+                                dpg.add_text("Resultados individuales y derivados")
+                                with dpg.table(
+                                    tag="historial_general",
+                                    header_row=True,
+                                    resizable=True,
+                                    policy=dpg.mvTable_SizingStretchProp,
+                                ):
+                                    self._add_history_table_columns()
 
                             dpg.add_button(
                                 label="Promediar selección",
