@@ -338,6 +338,7 @@ class ControlInterface:
             # Top row: checkbox + run label
             with dpg.group(horizontal=True):
                 dpg.add_checkbox(
+                    label="Mostrar",
                     default_value=True,
                     callback=self.toggle_run_visibility,
                     user_data=run.id,
@@ -631,7 +632,7 @@ class ControlInterface:
         ]
 
         if len(runs) < 2:
-            self.log("[PROMEDIO] Se necesitan al menos dos curvas visibles completas")
+            self.log("[PROMEDIO] Se necesitan al menos dos corridas visibles completas")
             self._update_operation_buttons_state()
             return
 
@@ -1561,7 +1562,7 @@ class ControlInterface:
                                 pass
 
                             dpg.add_button(
-                                label="Promediar curvas visibles",
+                                label="Promediar selección",
                                 callback=self.average_completed_runs,
                                 width=-1,
                             )

@@ -130,7 +130,7 @@ Cada barrido, calibración, corrida importada o corrida corregida queda registra
 Desde cada fila del historial se puede:
 
 - mostrar u ocultar la curva;
-- seleccionar indirectamente curvas para el promedio manteniéndolas visibles;
+- seleccionar corridas para el promedio manteniéndolas visibles;
 - guardar la corrida como CSV;
 - corregirla usando otra corrida como referencia;
 - calcular/mostrar picos;
@@ -143,7 +143,7 @@ La corrección permite restar una corrida de referencia, o blanco, a una corrida
 
 La referencia se interpola linealmente para poder corregir corridas con distinta cantidad de puntos o posiciones no idénticas.
 
-El historial también permite promediar las curvas visibles y completas. El promedio se calcula sobre el rango de posiciones común y usa interpolación lineal cuando las corridas tienen diferentes puntos; las curvas ocultas, fallidas, canceladas o interrumpidas se excluyen. Si el promedio falla, los controles de barrido y calibración recuperan su estado inmediatamente.
+El historial permite promediar las corridas completas que permanecen visibles. El botón **Promediar selección** usa esas curvas visibles; las curvas ocultas, fallidas, canceladas o interrumpidas se excluyen. El promedio se calcula sobre el rango de posiciones común y usa interpolación lineal cuando las corridas tienen diferentes puntos. Si el promedio falla, los controles de barrido y calibración recuperan su estado inmediatamente.
 
 Estos cálculos viven en `app/run_processing.py` y reutilizan la lógica de interpolación de `experiments/calibration.py`.
 

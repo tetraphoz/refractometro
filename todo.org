@@ -26,7 +26,9 @@
 ** TODO Mostrar el grafo de dependencias entre corridas
 
 * Flujo de laboratorio
-** TODO Seleccionar explícitamente las corridas que se van a promediar
+** DONE Seleccionar corridas visibles para promediar
+CLOSED: [2026-09-09 Wed]
+- State "DONE" from "TODO" [2026-09-09 Wed]
 ** TODO Implementar protocolos de medición por lotes
 + [ ] Cola de corridas
 + [ ] Pausa y reanudación
