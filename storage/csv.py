@@ -6,9 +6,9 @@ import os
 import tempfile
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from experiments.voltage_sweep import MeasurementPoint
+
+logger = logging.getLogger(__name__)
 
 
 def save_measurements_csv(
