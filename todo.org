@@ -16,9 +16,9 @@ selección de datos para un análisis.
 
 ** TODO Definir el modelo de una sesión de medición
 + [ ] Distinguir corridas crudas, lotes de adquisición y resultados derivados.
-+ [ ] Identificar una sesión con un UID y conservar sus corridas fuente.
-+ [ ] Registrar el propósito de la sesión: muestra, blanco/calibración o control.
-+ [ ] Definir estados de sesión: preparada, adquiriendo, pausada, completada,
++ [X] Identificar una sesión con un UID y conservar sus corridas fuente.
++ [X] Registrar el propósito de la sesión: muestra, blanco/calibración o control.
++ [X] Definir estados de sesión: preparada, adquiriendo, pausada, completada,
   cancelada, fallida e interrumpida.
 + [ ] Decidir qué datos se pueden modificar después de completar una sesión.
 
