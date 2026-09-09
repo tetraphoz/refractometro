@@ -8,7 +8,7 @@ from collections.abc import Callable
 from app.errors import CALLBACK_ERRORS, OPERATION_ERRORS, OperationCancelled
 from app.operation_state import OperationStatus
 from experiments.calibration import CalibrationCurve
-from experiments.voltage_sweep import MeasurementPoint, VoltageSweep
+from experiments.voltage_sweep import BatchProgress, MeasurementPoint, VoltageSweep
 from hardware.protocols import Motor, Sensor
 from storage.csv import save_measurements_csv
 
@@ -271,6 +271,156 @@ class ApplicationController:
             daemon=True,
         )
 
+        self._sweep_thread.start()
+
+    @staticmethod
+    def _notify_batch_error(
+        callback: Callable[[Exception, list[list[MeasurementPoint]]], None] | None,
+        exc: Exception,
+        partial_results: list[list[MeasurementPoint]],
+        operation: str,
+    ) -> None:
+        logger.error(
+            "%s failed after %d completed runs",
+            operation,
+            len(partial_results),
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+        if callback is None:
+            return
+
+        try:
+            callback(exc, partial_results)
+        except CALLBACK_ERRORS:
+            logger.exception("%s error callback failed", operation)
+
+    @staticmethod
+    def _notify_batch_finished(
+        callback: Callable[[list[list[MeasurementPoint]]], None] | None,
+        results: list[list[MeasurementPoint]],
+        operation: str,
+    ) -> None:
+        if callback is None:
+            return
+
+        try:
+            callback(results)
+        except CALLBACK_ERRORS:
+            logger.exception("%s finished callback failed", operation)
+
+    @staticmethod
+    def _notify_batch_cancelled(
+        callback: Callable[[list[list[MeasurementPoint]]], None] | None,
+        partial_results: list[list[MeasurementPoint]],
+        operation: str,
+    ) -> None:
+        if callback is None:
+            return
+
+        try:
+            callback(partial_results)
+        except CALLBACK_ERRORS:
+            logger.exception("%s cancellation callback failed", operation)
+
+    def start_voltage_batch(
+        self,
+        start_position_mm: float,
+        end_position_mm: float,
+        number_of_points: int,
+        stabilization_time_s: float,
+        number_of_runs: int,
+        filename_factory: Callable[[int], str],
+        metadata: dict[str, str] | None = None,
+        on_progress: Callable[[BatchProgress], None] | None = None,
+        on_run_finished: Callable[[int, list[MeasurementPoint]], None] | None = None,
+        on_finished: Callable[[list[list[MeasurementPoint]]], None] | None = None,
+        on_error: (
+            Callable[[Exception, list[list[MeasurementPoint]]], None] | None
+        ) = None,
+        on_cancelled: Callable[[list[list[MeasurementPoint]]], None] | None = None,
+    ) -> None:
+        """Acquire and persist repeated raw sweeps as one batch."""
+        laser_on_time_s = self.laser_on_time_s
+        cancel_event = self._begin_operation()
+        partial_results: list[list[MeasurementPoint]] = []
+        base_metadata = dict(metadata or {})
+        base_metadata.update(
+            {
+                "start_position_mm": str(start_position_mm),
+                "end_position_mm": str(end_position_mm),
+                "number_of_points": str(number_of_points),
+                "stabilization_time_s": str(stabilization_time_s),
+                "number_of_runs": str(number_of_runs),
+                "laser_on_time_s": f"{laser_on_time_s:.6f}",
+            }
+        )
+
+        def worker() -> None:
+            error: Exception | None = None
+            cancelled = False
+
+            def save_run(
+                run_number: int,
+                measurements: list[MeasurementPoint],
+            ) -> None:
+                run_metadata = {
+                    **base_metadata,
+                    "run_number": str(run_number),
+                }
+                save_measurements_csv(
+                    filename_factory(run_number),
+                    measurements,
+                    metadata=run_metadata,
+                )
+                partial_results.append(measurements)
+                if on_run_finished is not None:
+                    on_run_finished(run_number, measurements)
+
+            try:
+                results = self.sweep.run_batch(
+                    start_position_mm=start_position_mm,
+                    end_position_mm=end_position_mm,
+                    number_of_points=number_of_points,
+                    stabilization_time_s=stabilization_time_s,
+                    number_of_runs=number_of_runs,
+                    progress_callback=on_progress,
+                    run_finished_callback=save_run,
+                    cancel_event=cancel_event,
+                )
+            except OperationCancelled:
+                cancelled = True
+                results = partial_results
+            except OPERATION_ERRORS as exc:
+                error = exc
+                results = partial_results
+            finally:
+                try:
+                    self.motor.move_absolute(start_position_mm)
+                except OPERATION_ERRORS:
+                    logger.debug(
+                        "Failed to return motor to initial position", exc_info=True
+                    )
+                finally:
+                    self._end_operation()
+
+            if cancelled:
+                self._notify_batch_cancelled(
+                    on_cancelled,
+                    partial_results,
+                    "Voltage batch",
+                )
+            elif error is not None:
+                self._notify_batch_error(
+                    on_error,
+                    error,
+                    partial_results,
+                    "Voltage batch",
+                )
+            else:
+                self._notify_batch_finished(on_finished, results, "Voltage batch")
+
+        self._sweep_thread = threading.Thread(target=worker, daemon=True)
         self._sweep_thread.start()
 
     def start_calibration(

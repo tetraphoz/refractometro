@@ -73,6 +73,77 @@ def test_voltage_sweep_notifies_error_and_clears_running(tmp_path):
     assert str(errors[0]) == "sensor failed"
 
 
+def test_voltage_batch_persists_each_raw_run(tmp_path):
+    controller = ApplicationController(
+        motor=RecordingMotor(),
+        sensor=ConstantSensor(),
+    )
+    finished_event = threading.Event()
+    callback_states: list[bool] = []
+    results: list[list] = []
+
+    def on_finished(batch):
+        callback_states.append(controller.sweep_running)
+        results.extend(batch)
+        finished_event.set()
+
+    controller.start_voltage_batch(
+        start_position_mm=0.0,
+        end_position_mm=1.0,
+        number_of_points=2,
+        stabilization_time_s=0.0,
+        number_of_runs=2,
+        filename_factory=lambda run_number: str(tmp_path / f"raw-{run_number}.csv"),
+        on_finished=on_finished,
+    )
+
+    assert finished_event.wait(timeout=1.0)
+    assert controller._sweep_thread is not None
+    controller._sweep_thread.join(timeout=1.0)
+
+    assert not controller.sweep_running
+    assert callback_states == [False]
+    assert len(results) == 2
+    assert (tmp_path / "raw-1.csv").exists()
+    assert (tmp_path / "raw-2.csv").exists()
+
+
+def test_voltage_batch_cancellation_keeps_completed_raw_runs(tmp_path):
+    controller = ApplicationController(
+        motor=RecordingMotor(),
+        sensor=ConstantSensor(),
+    )
+    cancelled_event = threading.Event()
+    partial_results: list[list] = []
+
+    def on_run_finished(_run_number, _measurements):
+        assert controller.cancel_operation()
+
+    def on_cancelled(batch):
+        partial_results.extend(batch)
+        cancelled_event.set()
+
+    controller.start_voltage_batch(
+        start_position_mm=0.0,
+        end_position_mm=1.0,
+        number_of_points=2,
+        stabilization_time_s=0.0,
+        number_of_runs=3,
+        filename_factory=lambda run_number: str(tmp_path / f"raw-{run_number}.csv"),
+        on_run_finished=on_run_finished,
+        on_cancelled=on_cancelled,
+    )
+
+    assert cancelled_event.wait(timeout=1.0)
+    assert controller._sweep_thread is not None
+    controller._sweep_thread.join(timeout=1.0)
+
+    assert not controller.sweep_running
+    assert len(partial_results) == 1
+    assert (tmp_path / "raw-1.csv").exists()
+    assert not (tmp_path / "raw-2.csv").exists()
+
+
 def test_voltage_sweep_finished_callback_runs_after_state_is_cleared(tmp_path):
     controller = ApplicationController(
         motor=RecordingMotor(),
