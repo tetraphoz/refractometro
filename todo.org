@@ -152,9 +152,9 @@ selección de datos para un análisis.
 + [ ] Adquisición de un lote simulado.
 + [ ] Cancelación y recuperación de un lote.
 + [ ] Promedio con corridas de distinta resolución y rango.
-+ [ ] Calibración promedio sin muestra.
++ [X] Calibración promedio sin muestra.
 + [ ] Corrección y detección del pico final.
-+ [ ] Persistencia y restauración de la procedencia.
++ [X] Persistencia y restauración de la procedencia.
 ** TODO Mejorar el simulador
 + [ ] Ruido configurable.
 + [ ] Deriva configurable.
