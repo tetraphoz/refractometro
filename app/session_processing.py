@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
-from app.models import MeasurementSession, RunRecord, RunStatus, SessionKind
+from app.models import (
+    MeasurementSession,
+    RunRecord,
+    RunStatus,
+    SessionKind,
+    SweepProtocol,
+)
 from app.run_processing import AverageResult, average_runs_with_statistics
 from experiments.calibration import CalibrationCurve
 
@@ -27,15 +34,48 @@ def completed_session_runs(
     return completed_runs
 
 
+def _validate_protocol(
+    protocol: SweepProtocol,
+    runs: Iterable[RunRecord],
+) -> None:
+    expected_start = min(protocol.start_position_mm, protocol.end_position_mm)
+    expected_end = max(protocol.start_position_mm, protocol.end_position_mm)
+
+    for run in runs:
+        positions = [point.position_mm for point in run.measurements]
+        if not positions:
+            raise ValueError("La corrida no tiene mediciones")
+        if run.expected_points != protocol.number_of_points:
+            raise ValueError("La corrida no coincide con los puntos del protocolo")
+        try:
+            stabilization_time_s = float(run.stabilization_time_s or "")
+        except ValueError as exc:
+            raise ValueError("La corrida no tiene estabilización válida") from exc
+        if not math.isclose(
+            stabilization_time_s,
+            protocol.stabilization_time_s,
+            abs_tol=1e-9,
+        ):
+            raise ValueError(
+                "La corrida no coincide con la estabilización del protocolo"
+            )
+        if not (
+            math.isclose(min(positions), expected_start, abs_tol=1e-9)
+            and math.isclose(max(positions), expected_end, abs_tol=1e-9)
+        ):
+            raise ValueError("La corrida no coincide con el rango del protocolo")
+
+
 def average_session(
     session: MeasurementSession,
     runs: Iterable[RunRecord],
 ) -> AverageResult:
-    """Average the valid raw runs explicitly attached to a session."""
+    """Average completed sources after validating the session protocol."""
     completed_runs = completed_session_runs(session, runs)
     if len(completed_runs) < 2:
         raise ValueError("La sesión necesita al menos dos corridas completas")
 
+    _validate_protocol(session.sweep_protocol(), completed_runs)
     return average_runs_with_statistics(completed_runs)
 
 

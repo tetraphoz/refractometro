@@ -33,6 +33,46 @@ class SessionKind(StrEnum):
     CONTROL = "control"
 
 
+@dataclass(frozen=True)
+class SweepProtocol:
+    """Acquisition settings shared by every raw run in a session."""
+
+    start_position_mm: float
+    end_position_mm: float
+    number_of_points: int
+    stabilization_time_s: float
+
+    def __post_init__(self) -> None:
+        if self.number_of_points < 2:
+            raise ValueError("El protocolo necesita al menos dos puntos")
+        if self.stabilization_time_s < 0:
+            raise ValueError("El tiempo de estabilización no puede ser negativo")
+
+    def as_parameters(self) -> dict[str, float | int]:
+        """Serialize the protocol as JSON-compatible session parameters."""
+        return {
+            "start_position_mm": self.start_position_mm,
+            "end_position_mm": self.end_position_mm,
+            "number_of_points": self.number_of_points,
+            "stabilization_time_s": self.stabilization_time_s,
+        }
+
+    @classmethod
+    def from_parameters(cls, parameters: dict[str, object]) -> SweepProtocol:
+        """Build a protocol from persisted JSON-compatible parameters."""
+        try:
+            return cls(
+                start_position_mm=float(parameters["start_position_mm"]),
+                end_position_mm=float(parameters["end_position_mm"]),
+                number_of_points=int(parameters["number_of_points"]),
+                stabilization_time_s=float(parameters["stabilization_time_s"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "La sesión no tiene un protocolo de barrido válido"
+            ) from exc
+
+
 class SessionStatus(StrEnum):
     """Lifecycle state of a laboratory measurement session."""
 
@@ -96,6 +136,14 @@ class MeasurementSession:
         if self.status is not SessionStatus.PREPARED:
             raise ValueError("El protocolo solo puede cambiarse antes de adquirir")
         self.protocol_parameters = dict(parameters)
+
+    def set_sweep_protocol(self, protocol: SweepProtocol) -> None:
+        """Set the typed sweep settings used for all raw session runs."""
+        self.set_protocol_parameters(protocol.as_parameters())
+
+    def sweep_protocol(self) -> SweepProtocol:
+        """Return the persisted typed acquisition settings for the session."""
+        return SweepProtocol.from_parameters(self.protocol_parameters)
 
     def add_run_uid(self, run_uid: str) -> None:
         """Attach a raw run once, preserving acquisition order."""

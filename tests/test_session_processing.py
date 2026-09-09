@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import MeasurementSession, RunRecord, RunStatus, SessionKind
+from app.models import (
+    MeasurementSession,
+    RunRecord,
+    RunStatus,
+    SessionKind,
+    SweepProtocol,
+)
 from app.session_processing import (
     average_session,
     calibration_from_session,
@@ -26,6 +32,8 @@ def make_run(
             MeasurementPoint(1.0, float(run_id + 1)),
         ],
         status=status,
+        expected_points=2,
+        stabilization_time_s="0.1",
         session_uid=session_uid,
     )
 
@@ -43,6 +51,7 @@ def test_completed_session_runs_excludes_non_completed_sources():
 
 def test_average_session_uses_explicit_session_sources():
     session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
     first = make_run(1, session.uid)
     second = make_run(3, session.uid)
     unrelated = make_run(10, "other-session")
@@ -60,6 +69,7 @@ def test_average_session_uses_explicit_session_sources():
 
 def test_average_session_requires_two_completed_runs():
     session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
     run = make_run(1, session.uid)
     session.add_run_uid(run.uid)
 
@@ -76,6 +86,7 @@ def test_calibration_from_session_requires_calibration_kind():
 
 def test_calibration_from_session_averages_calibration_runs():
     session = MeasurementSession("Blanco", SessionKind.CALIBRATION, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
     first = make_run(1, session.uid)
     second = make_run(3, session.uid)
     session.add_run_uid(first.uid)
@@ -87,3 +98,16 @@ def test_calibration_from_session_averages_calibration_runs():
         MeasurementPoint(0.0, 2.0),
         MeasurementPoint(1.0, 3.0),
     ]
+
+
+def test_average_session_rejects_a_run_with_a_different_protocol():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
+    first = make_run(1, session.uid)
+    second = make_run(2, session.uid)
+    second.expected_points = 3
+    session.add_run_uid(first.uid)
+    session.add_run_uid(second.uid)
+
+    with pytest.raises(ValueError, match="puntos del protocolo"):
+        average_session(session, [first, second])

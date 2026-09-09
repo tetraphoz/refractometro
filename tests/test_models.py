@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import MeasurementSession, SessionKind, SessionStatus
+from app.models import MeasurementSession, SessionKind, SessionStatus, SweepProtocol
 
 
 def test_measurement_session_tracks_raw_runs_in_acquisition_order():
@@ -19,6 +19,28 @@ def test_measurement_session_tracks_raw_runs_in_acquisition_order():
     assert session.status is SessionStatus.PREPARED
     assert session.run_uids == ["run-2", "run-1"]
     assert session.protocol_parameters == {"number_of_points": 20}
+
+
+def test_measurement_session_persists_typed_sweep_protocol():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=1)
+    protocol = SweepProtocol(0.0, 12.0, 50, 0.2)
+
+    session.set_sweep_protocol(protocol)
+
+    assert session.protocol_parameters == {
+        "start_position_mm": 0.0,
+        "end_position_mm": 12.0,
+        "number_of_points": 50,
+        "stabilization_time_s": 0.2,
+    }
+    assert session.sweep_protocol() == protocol
+
+
+def test_sweep_protocol_rejects_invalid_acquisition_settings():
+    with pytest.raises(ValueError, match="al menos dos puntos"):
+        SweepProtocol(0.0, 12.0, 1, 0.2)
+    with pytest.raises(ValueError, match="no puede ser negativo"):
+        SweepProtocol(0.0, 12.0, 50, -0.1)
 
 
 def test_measurement_session_enforces_lifecycle_and_protocol_mutability():

@@ -23,7 +23,7 @@ selección de datos para un análisis.
 + [X] Decidir qué datos se pueden modificar después de completar una sesión.
 
 ** TODO Implementar adquisición por lotes de barridos
-+ [ ] Configurar cantidad de barridos, posiciones y tiempo de estabilización.
++ [X] Configurar cantidad de barridos, posiciones y tiempo de estabilización.
 + [X] Ejecutar una cola de barridos sin solicitudes superpuestas.
 + [X] Guardar cada barrido crudo inmediatamente al terminarlo.
 + [ ] Mostrar progreso del barrido actual y progreso total del lote.
@@ -36,7 +36,7 @@ selección de datos para un análisis.
 ** TODO Promediar un lote de barridos
 + [X] Seleccionar explícitamente el lote fuente, independientemente de la
 +  visibilidad de sus curvas.
-+ [ ] Validar que las corridas pertenezcan a un protocolo compatible.
++ [X] Validar que las corridas pertenezcan a un protocolo compatible.
 + [X] Excluir corridas fallidas, canceladas o incompletas.
 + [X] Interpolar las corridas a una cuadrícula común sobre el rango compartido.
 + [X] Calcular la curva promedio y conservar los UID de todas las fuentes.
