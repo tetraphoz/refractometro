@@ -21,6 +21,20 @@ def test_measurement_session_tracks_raw_runs_in_acquisition_order():
     assert session.protocol_parameters == {"number_of_points": 20}
 
 
+def test_measurement_session_enforces_lifecycle_and_protocol_mutability():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=1)
+    session.set_protocol_parameters({"number_of_points": 20})
+    session.transition_to(SessionStatus.ACQUIRING)
+    session.transition_to(SessionStatus.COMPLETED)
+
+    with pytest.raises(ValueError, match="No se puede cambiar"):
+        session.transition_to(SessionStatus.ACQUIRING)
+    with pytest.raises(ValueError, match="solo puede cambiarse"):
+        session.set_protocol_parameters({"number_of_points": 50})
+    with pytest.raises(ValueError, match="sesión finalizada"):
+        session.add_run_uid("run-1")
+
+
 def test_measurement_session_rejects_invalid_or_duplicate_runs():
     with pytest.raises(ValueError, match="al menos una corrida"):
         MeasurementSession("Vacío", SessionKind.CALIBRATION, expected_runs=0)

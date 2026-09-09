@@ -20,7 +20,7 @@ selección de datos para un análisis.
 + [X] Registrar el propósito de la sesión: muestra, blanco/calibración o control.
 + [X] Definir estados de sesión: preparada, adquiriendo, pausada, completada,
   cancelada, fallida e interrumpida.
-+ [ ] Decidir qué datos se pueden modificar después de completar una sesión.
++ [X] Decidir qué datos se pueden modificar después de completar una sesión.
 
 ** TODO Implementar adquisición por lotes de barridos
 + [ ] Configurar cantidad de barridos, posiciones y tiempo de estabilización.

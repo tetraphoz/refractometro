@@ -45,6 +45,27 @@ class SessionStatus(StrEnum):
     INTERRUPTED = "interrupted"
 
 
+_SESSION_TRANSITIONS = {
+    SessionStatus.PREPARED: {SessionStatus.ACQUIRING, SessionStatus.CANCELLED},
+    SessionStatus.ACQUIRING: {
+        SessionStatus.PAUSED,
+        SessionStatus.COMPLETED,
+        SessionStatus.CANCELLED,
+        SessionStatus.FAILED,
+        SessionStatus.INTERRUPTED,
+    },
+    SessionStatus.PAUSED: {
+        SessionStatus.ACQUIRING,
+        SessionStatus.CANCELLED,
+        SessionStatus.INTERRUPTED,
+    },
+    SessionStatus.COMPLETED: set(),
+    SessionStatus.CANCELLED: set(),
+    SessionStatus.FAILED: set(),
+    SessionStatus.INTERRUPTED: set(),
+}
+
+
 @dataclass
 class MeasurementSession:
     """Group of raw runs acquired for one laboratory purpose."""
@@ -62,8 +83,28 @@ class MeasurementSession:
         if self.expected_runs < 1:
             raise ValueError("Una sesión necesita al menos una corrida")
 
+    def transition_to(self, status: SessionStatus) -> None:
+        """Apply a valid lifecycle transition to the session."""
+        if status not in _SESSION_TRANSITIONS[self.status]:
+            raise ValueError(
+                f"No se puede cambiar una sesión de {self.status} a {status}"
+            )
+        self.status = status
+
+    def set_protocol_parameters(self, parameters: dict[str, object]) -> None:
+        """Set acquisition settings before the session starts."""
+        if self.status is not SessionStatus.PREPARED:
+            raise ValueError("El protocolo solo puede cambiarse antes de adquirir")
+        self.protocol_parameters = dict(parameters)
+
     def add_run_uid(self, run_uid: str) -> None:
         """Attach a raw run once, preserving acquisition order."""
+        if self.status not in {
+            SessionStatus.PREPARED,
+            SessionStatus.ACQUIRING,
+            SessionStatus.PAUSED,
+        }:
+            raise ValueError("No se pueden agregar corridas a una sesión finalizada")
         if not run_uid:
             raise ValueError("La corrida necesita un UID")
         if run_uid in self.run_uids:
