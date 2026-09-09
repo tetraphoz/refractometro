@@ -76,8 +76,9 @@ uv run python main.py --test
 
 En este modo se puede:
 
-- ejecutar un **Barrido**;
-- ejecutar una **Calibración**;
+- ejecutar un **Barrido** individual o un **lote** configurando dos o más repeticiones;
+- ejecutar una **Calibración** individual o un lote de blanco;
+- pausar, reanudar o cancelar una adquisición de lote;
 - mover un motor simulado;
 - consultar corridas en el **Historial**;
 - calcular y visualizar picos;
@@ -118,8 +119,10 @@ En la sección **Barrido** define:
 La interfaz permite:
 
 - **Mover**: desplaza el motor a una posición absoluta.
-- **Barrido**: mide voltaje vs posición en el intervalo configurado.
-- **Calibración**: adquiere una corrida de referencia, por ejemplo con el portamuestras vacío.
+- **Barrido / lote**: con una repetición mide voltaje vs posición; con dos o más crea una sesión de muestra y conserva cada barrido crudo.
+- **Calibración / lote**: con dos o más repeticiones crea una sesión de blanco compatible con el flujo de promedio de v3.
+
+Para un lote, la primera barra muestra el avance del barrido actual y la segunda el avance total. **Pausar** detiene la adquisición antes del siguiente punto de forma segura; **Reanudar** continúa la misma sesión. **Cancelar** conserva las corridas ya terminadas y deja registradas las demás como canceladas.
 
 Durante una operación larga, los botones de operación se deshabilitan para evitar solicitudes superpuestas. El botón **Cancelar** solicita la detención de la operación, conserva las mediciones parciales y devuelve el motor a la posición inicial. Si una operación falla, la corrida se marca como fallida y los botones vuelven a su estado correcto.
 
@@ -136,6 +139,14 @@ Desde cada fila del historial se puede:
 - calcular/mostrar picos;
 - exportar la gráfica como PNG;
 - eliminar la corrida.
+
+## Resultado físico y detección de picos
+
+La posición del pico se expresa en **mm**, que son las unidades del eje del motor. La señal del sensor se expresa en **V**. Para detección, la amplitud del pico es la respuesta óptica en voltios después del suavizado y de la corrección de línea base configurados.
+
+El software no convierte por sí solo una posición en índice de refracción: esa relación depende de una calibración física validada para el equipo y la muestra. Un resultado de índice debe guardar dicha calibración externa, sus unidades y su incertidumbre; hasta entonces, el resultado reproducible es la posición de cambio candidata y su señal óptica.
+
+`app/peak_analysis.py` proporciona detección reproducible con ventana de suavizado, corrección de línea base lineal, prominencia, ancho, distancia mínima y rango esperado. Cada candidato incluye incertidumbres estimadas de posición y voltaje. La selección del pico de interés es explícita mediante su índice en la lista de candidatos y sus parámetros pueden persistirse junto al resultado derivado.
 
 ## Corrección por referencia
 

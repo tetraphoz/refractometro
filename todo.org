@@ -67,23 +67,23 @@ selección de datos para un análisis.
 * v3 — Detección del cambio de índice de refracción
 
 ** TODO Definir el resultado físico de la medición
-+ [ ] Documentar qué posición/voltaje representa el cambio de índice.
-+ [ ] Definir las unidades y la relación entre la posición del pico y el índice.
-        El motor usa mm y el sensor optoelectrico voltaje
-+ [ ] Separar el pico físico de otros máximos causados por ruido, artefactos o la curva de medición.
-+ [ ] Definir criterios de aceptación para una medición válida.
++ [X] Documentar qué posición/voltaje representa el cambio de índice.
++ [X] Definir las unidades y la relación entre la posición del pico y el índice.
+  El motor usa mm y el sensor optoelectrico voltaje.
++ [X] Separar el pico físico de otros máximos causados por ruido, artefactos o la curva de medición.
++ [X] Definir criterios de aceptación para una medición válida.
 
 ** TODO Hacer robusta la detección del pico
-+ [ ] Configurar suavizado y corrección de línea base.
-+ [ ] Configurar umbral de prominencia, ancho y distancia mínima entre picos.
-+ [ ] Estimar incertidumbre de posición y voltaje del pico.
++ [X] Configurar suavizado y corrección de línea base.
++ [X] Configurar umbral de prominencia, ancho y distancia mínima entre picos.
++ [X] Estimar incertidumbre de posición y voltaje del pico.
 + [ ] Comparar la posición del pico entre barridos del mismo lote.
-+ [ ] Identificar múltiples picos y permitir seleccionar el pico de interés.
++ [X] Identificar múltiples picos y permitir seleccionar el pico de interés.
 + [ ] Rechazar o marcar picos que no sean repetibles.
-+ [ ] Guardar todos los parámetros de detección junto con el resultado.
++ [X] Guardar todos los parámetros de detección junto con el resultado.
 
 ** TODO Analizar calidad y repetibilidad
-+ [ ] Calcular desviación estándar de la curva promedio.
++ [X] Calcular desviación estándar de la curva promedio.
 + [ ] Calcular variación de posición y voltaje del pico.
 + [ ] Calcular relación señal/ruido.
 + [ ] Detectar corridas atípicas con un criterio documentado.
