@@ -79,6 +79,42 @@ def average_session(
     return average_runs_with_statistics(completed_runs)
 
 
+def average_session_run(
+    session: MeasurementSession,
+    runs: Iterable[RunRecord],
+    *,
+    run_id: int,
+    curve_tag: str,
+) -> RunRecord:
+    """Create a completed derived run with average provenance and statistics."""
+    average = average_session(session, runs)
+    positions = [point.position_mm for point in average.points]
+    return RunRecord(
+        id=run_id,
+        kind="promedio",
+        label=f"Promedio de {session.label}",
+        curve_tag=curve_tag,
+        measurements=average.measurements,
+        expected_points=len(average.points),
+        status=RunStatus.COMPLETED,
+        source_uids=list(average.source_uids),
+        analysis_kind="session_average",
+        analysis_parameters={
+            "analysis_version": "v3",
+            "source_session_uid": session.uid,
+            "source_count": len(average.source_uids),
+            "position_range_mm": [min(positions), max(positions)],
+            "point_count": len(average.points),
+            "interpolation": "linear_common_grid",
+            "protocol": session.sweep_protocol().as_parameters(),
+            "standard_deviation_v": [
+                point.standard_deviation_v for point in average.points
+            ],
+            "sample_counts": [point.sample_count for point in average.points],
+        },
+    )
+
+
 def calibration_from_session(
     session: MeasurementSession,
     runs: Iterable[RunRecord],

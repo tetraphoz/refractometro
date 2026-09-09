@@ -11,6 +11,7 @@ from app.models import (
 )
 from app.session_processing import (
     average_session,
+    average_session_run,
     calibration_from_session,
     completed_session_runs,
 )
@@ -75,6 +76,39 @@ def test_average_session_requires_two_completed_runs():
 
     with pytest.raises(ValueError, match="al menos dos"):
         average_session(session, [run])
+
+
+def test_average_session_run_keeps_provenance_and_repeatability_data():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=2)
+    session.set_sweep_protocol(SweepProtocol(0.0, 1.0, 2, 0.1))
+    first = make_run(1, session.uid)
+    second = make_run(3, session.uid)
+    session.add_run_uid(first.uid)
+    session.add_run_uid(second.uid)
+
+    derived = average_session_run(
+        session,
+        [first, second],
+        run_id=10,
+        curve_tag="curve-10",
+    )
+
+    assert derived.kind == "promedio"
+    assert derived.status is RunStatus.COMPLETED
+    assert derived.source_uids == [first.uid, second.uid]
+    assert derived.session_uid is None
+    assert derived.analysis_kind == "session_average"
+    assert derived.analysis_parameters == {
+        "analysis_version": "v3",
+        "source_session_uid": session.uid,
+        "source_count": 2,
+        "position_range_mm": [0.0, 1.0],
+        "point_count": 2,
+        "interpolation": "linear_common_grid",
+        "protocol": session.sweep_protocol().as_parameters(),
+        "standard_deviation_v": [1.0, 1.0],
+        "sample_counts": [2, 2],
+    }
 
 
 def test_calibration_from_session_requires_calibration_kind():

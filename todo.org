@@ -40,8 +40,8 @@ selección de datos para un análisis.
 + [X] Excluir corridas fallidas, canceladas o incompletas.
 + [X] Interpolar las corridas a una cuadrícula común sobre el rango compartido.
 + [X] Calcular la curva promedio y conservar los UID de todas las fuentes.
-+ [ ] Guardar los parámetros del promedio: cantidad de fuentes, rango,
-+   resolución e interpolación.
++ [X] Guardar los parámetros del promedio: cantidad de fuentes, rango,
++  resolución e interpolación.
 + [X] Calcular desviación estándar y cantidad de observaciones por posición.
 + [ ] Permitir revisar y reincorporar corridas excluidas con una razón explícita.
 + [ ] Hacer visible la diferencia entre datos crudos y resultado promedio.
