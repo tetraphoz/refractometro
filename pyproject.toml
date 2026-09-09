@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Refractometro"
+version = "0.1.0"
+description = "Aplicación gráfica para control de un refractometro"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "dearpygui>=2.3.1",
+    "matplotlib>=3.11.1",
+    "pyserial>=3.5",
+    "zaber-motion>=10.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pyinstaller>=6.22.0",
+    "pytest>=9.1.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "experiments*", "gui*", "hardware*", "storage*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.black]
+target-version = ["py313"]
+
+[tool.isort]
+profile = "black"
