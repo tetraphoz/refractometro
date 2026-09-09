@@ -578,55 +578,47 @@ class ControlInterface:
                 dpg.add_text("", tag=f"hist_status_text_{run.id}")
                 dpg.add_text("", tag=f"hist_peaks_text_{run.id}")
 
-        with dpg.popup(run.text_tag, mousebutton=dpg.mvMouseButton_Right):
-            dpg.add_text(run.label)
-            dpg.add_separator()
-            dpg.add_button(
-                label="Guardar CSV",
-                tag=f"hist_guardar_{run.id}",
-                callback=self.on_click_save_run,
-                user_data=run.id,
-                width=-1,
-            )
-            dpg.add_button(
-                label="Corregir con blanco",
-                tag=f"hist_corregir_{run.id}",
-                callback=self.on_click_correct_run,
-                user_data=run.id,
-                width=-1,
-            )
-            dpg.add_button(
-                label="Mostrar u ocultar picos",
-                tag=f"hist_peaks_{run.id}",
-                callback=self.on_click_peaks,
-                user_data=run.id,
-                width=-1,
-            )
-            dpg.add_button(
-                label="Ver origen y parámetros",
-                tag=f"hist_proveniencia_{run.id}",
-                callback=self.show_run_provenance,
-                user_data=run.id,
-                width=-1,
-            )
-            dpg.add_button(
-                label="Exportar PNG",
-                tag=f"hist_exportar_{run.id}",
-                callback=self.on_click_export_run,
-                user_data=run.id,
-                width=-1,
-            )
-            dpg.add_separator()
-            dpg.add_button(
-                label="Eliminar",
-                tag=f"hist_eliminar_{run.id}",
-                callback=self.on_click_delete_run,
-                user_data=run.id,
-                width=-1,
-            )
+        context_targets = [
+            f"hist_visible_{run.id}",
+            run.text_tag,
+            f"hist_laser_text_{run.id}",
+            f"hist_status_text_{run.id}",
+            f"hist_peaks_text_{run.id}",
+        ]
+        for index, context_target in enumerate(context_targets):
+            with dpg.popup(context_target, mousebutton=dpg.mvMouseButton_Right):
+                self._add_run_context_actions(run, tagged=index == 0)
 
         self.update_history_text(run)
         dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
+
+    def _add_run_context_actions(self, run: RunRecord, *, tagged: bool) -> None:
+        """Add the same context actions to every interactive history cell."""
+        dpg.add_text(run.label)
+        dpg.add_separator()
+        actions = [
+            ("Guardar CSV", "hist_guardar", self.on_click_save_run),
+            ("Corregir con blanco", "hist_corregir", self.on_click_correct_run),
+            ("Mostrar u ocultar picos", "hist_peaks", self.on_click_peaks),
+            ("Ver origen y parámetros", "hist_proveniencia", self.show_run_provenance),
+            ("Exportar PNG", "hist_exportar", self.on_click_export_run),
+        ]
+        for label, tag_prefix, callback in actions:
+            kwargs = {"tag": f"{tag_prefix}_{run.id}"} if tagged else {}
+            dpg.add_menu_item(
+                label=label,
+                callback=callback,
+                user_data=run.id,
+                **kwargs,
+            )
+        dpg.add_separator()
+        kwargs = {"tag": f"hist_eliminar_{run.id}"} if tagged else {}
+        dpg.add_menu_item(
+            label="Eliminar",
+            callback=self.on_click_delete_run,
+            user_data=run.id,
+            **kwargs,
+        )
 
     def update_history_text(self, run: RunRecord) -> None:
         status_text = {
@@ -2070,7 +2062,7 @@ class ControlInterface:
                             ):
                                 dpg.add_text(
                                     "Resultados individuales y derivados "
-                                    "(clic derecho en una fila para acciones)"
+                                    "(clic derecho en cualquier celda para acciones)"
                                 )
                                 with dpg.table(
                                     tag="historial_general",
