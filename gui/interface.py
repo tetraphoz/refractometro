@@ -599,7 +599,7 @@ class ControlInterface:
             ("Guardar CSV", "hist_guardar", self.on_click_save_run),
             ("Corregir con blanco", "hist_corregir", self.on_click_correct_run),
             ("Mostrar u ocultar picos", "hist_peaks", self.on_click_peaks),
-            ("Ver origen y parámetros", "hist_proveniencia", self.show_run_provenance),
+            ("Ver información", "hist_proveniencia", self.show_run_information),
             ("Exportar PNG", "hist_exportar", self.on_click_export_run),
         ]
         for label, tag_prefix, callback in actions:
@@ -723,12 +723,29 @@ class ControlInterface:
         else:
             self.log("[EXPORT] Error al exportar")
 
-    def show_run_provenance(self, _sender, _value, run_id: int) -> None:
-        """Show sources and reproducible analysis parameters for one result."""
+    def show_run_information(self, _sender, _value, run_id: int) -> None:
+        """Show useful acquisition and analysis information for any run type."""
         run = self._run_history.get(run_id)
         if run is None:
             return
 
+        if run.measurements and not run.peaks:
+            run.peaks = self.controller.sweep.find_peaks(run.measurements)
+            self.update_history_text(run)
+
+        session = (
+            self._repository.get_session(run.session_uid)
+            if run.session_uid is not None
+            else None
+        )
+        session_text = (
+            f"{session.label} ({session.kind.value}, {session.status.value})"
+            if session is not None
+            else "No pertenece a un lote"
+        )
+        peaks_text = (
+            format_peak_summary(run.peaks, limit=10) or "No se detectaron picos"
+        )
         sources = [
             self._run_history.get_by_uid(source_uid) for source_uid in run.source_uids
         ]
@@ -737,13 +754,36 @@ class ControlInterface:
                 f"- {source.label if source is not None else source_uid} ({source_uid[:8]})"
                 for source_uid, source in zip(run.source_uids, sources)
             )
-            or "- Sin fuentes derivadas"
+            or "No aplica: esta es una corrida fuente"
         )
-        parameters = json.dumps(run.analysis_parameters, indent=2, ensure_ascii=False)
-        dpg.set_value("modal_proveniencia_titulo", f"Proveniencia: {run.label}")
+        analysis_text = (
+            json.dumps(run.analysis_parameters, indent=2, ensure_ascii=False)
+            if run.analysis_parameters
+            else "No aplica: esta es una corrida sin análisis derivado"
+        )
+        acquisition_text = json.dumps(
+            {
+                "expected_points": run.expected_points,
+                "stabilization_time_s": run.stabilization_time_s,
+                "laser_on_time_s": run.laser_on_time_s,
+                "filename": run.filename,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        dpg.set_value("modal_proveniencia_titulo", f"Información: {run.label}")
         dpg.set_value(
             "modal_proveniencia_texto",
-            f"Fuentes:\n{source_text}\n\nParámetros:\n{parameters}",
+            "Información de corrida\n"
+            f"UID: {run.uid}\n"
+            f"Tipo: {run.kind}\n"
+            f"Estado: {run.status.value}\n"
+            f"Lote: {session_text}\n"
+            f"Puntos medidos: {len(run.measurements)}\n\n"
+            f"Picos:\n{peaks_text}\n\n"
+            f"Adquisición:\n{acquisition_text}\n\n"
+            f"Fuentes:\n{source_text}\n\n"
+            f"Análisis y parámetros:\n{analysis_text}",
         )
         dpg.show_item("modal_proveniencia")
 
@@ -1774,7 +1814,7 @@ class ControlInterface:
                 )
 
         with dpg.window(
-            label="Origen y parámetros",
+            label="Información de corrida",
             modal=True,
             show=False,
             tag="modal_proveniencia",
