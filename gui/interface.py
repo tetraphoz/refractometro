@@ -2272,7 +2272,10 @@ class ControlInterface:
                 if peaks:
                     if dpg.does_item_exist(peaks_tag):
                         dpg.set_value(peaks_tag, [xs, ys])
-                        dpg.configure_item(peaks_tag, show=True)
+                        dpg.configure_item(
+                            peaks_tag,
+                            show=self._raw_run_is_visible(run),
+                        )
                     else:
                         dpg.add_scatter_series(
                             xs,
@@ -2281,6 +2284,8 @@ class ControlInterface:
                             parent="voltage_axis",
                             tag=peaks_tag,
                         )
+                        if not self._raw_run_is_visible(run):
+                            dpg.configure_item(peaks_tag, show=False)
                 else:
                     # no peaks: clear/hide existing series if any
                     if dpg.does_item_exist(peaks_tag):

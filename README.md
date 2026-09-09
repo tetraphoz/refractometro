@@ -1,6 +1,6 @@
 # Refractómetro
 
-**Versión actual: v2.1**
+**Versión actual: v3**
 
 Aplicación gráfica para controlar un refractómetro motorizado, adquirir datos experimentales y analizar mediciones de voltaje en función de la posición.
 
@@ -122,7 +122,7 @@ La interfaz permite:
 - **Barrido / lote**: con una repetición mide voltaje vs posición; con dos o más crea una sesión de muestra y conserva cada barrido crudo.
 - **Calibración / lote**: con dos o más repeticiones crea una sesión de blanco compatible con el flujo de promedio de v3.
 
-Para un lote, la primera barra muestra el avance del barrido actual y la segunda el avance total. **Pausar** detiene la adquisición antes del siguiente punto de forma segura; **Reanudar** continúa la misma sesión. **Cancelar** conserva las corridas ya terminadas y deja registradas las demás como canceladas.
+Para un lote, la primera barra muestra el avance del barrido actual y la segunda el avance total. **Pausar** detiene la adquisición antes del siguiente punto de forma segura; **Reanudar** continúa la misma sesión. **Cancelar** conserva las corridas ya terminadas y deja registradas las demás como canceladas. **Reintentos por barrido** permite repetir automáticamente una adquisición que falle; se conserva el número de intentos y el motivo del fallo.
 
 Durante una operación larga, los botones de operación se deshabilitan para evitar solicitudes superpuestas. El botón **Cancelar** solicita la detención de la operación, conserva las mediciones parciales y devuelve el motor a la posición inicial. Si una operación falla, la corrida se marca como fallida y los botones vuelven a su estado correcto.
 
@@ -133,12 +133,14 @@ Cada barrido, calibración, corrida importada o corrida corregida queda registra
 Desde cada fila del historial se puede:
 
 - mostrar u ocultar la curva;
-- seleccionar corridas para el promedio manteniéndolas visibles;
+- seleccionar corridas para el promedio con clic y Shift + clic;
 - guardar la corrida como CSV;
 - corregirla usando otra corrida como referencia;
 - calcular/mostrar picos;
 - exportar la gráfica como PNG;
-- eliminar la corrida.
+- eliminar la corrida;
+- excluir o reincorporar una corrida de un promedio indicando una razón auditable;
+- analizar la repetibilidad y calidad de los picos del lote.
 
 ## Resultado físico y detección de picos
 
@@ -154,7 +156,7 @@ La corrección permite restar una corrida de referencia, o blanco, a una corrida
 
 La referencia se interpola linealmente para poder corregir corridas con distinta cantidad de puntos o posiciones no idénticas.
 
-El historial permite promediar las corridas completas que permanecen visibles. El botón **Promediar selección** usa esas curvas visibles; las curvas ocultas, fallidas, canceladas o interrumpidas se excluyen. El promedio se calcula sobre el rango de posiciones común y usa interpolación lineal cuando las corridas tienen diferentes puntos. Si el promedio falla, los controles de barrido y calibración recuperan su estado inmediatamente.
+El historial separa la selección analítica de la visibilidad de las gráficas. El botón **Promediar selección** usa exactamente las corridas completas seleccionadas en las filas, aunque sus curvas estén ocultas. La opción **Mostrar barridos crudos** solo cambia la presentación y no modifica las fuentes del análisis. Las corridas fallidas, canceladas, interrumpidas o excluidas explícitamente no se incluyen en los promedios de sesión. El promedio se calcula sobre el rango de posiciones común y usa interpolación lineal cuando las corridas tienen diferentes puntos. Si el promedio falla, los controles de barrido y calibración recuperan su estado inmediatamente.
 
 Estos cálculos viven en `app/run_processing.py` y reutilizan la lógica de interpolación de `experiments/calibration.py`.
 
@@ -217,7 +219,7 @@ Las dependencias de Python están declaradas en `pyproject.toml` y sus versiones
 - `zaber-motion` >= 10.0.0
 - `matplotlib` >= 3.11.1
 
-### Cambios destacados de v2.1
+### Cambios destacados de v3
 
 - historial persistente en SQLite con recuperación de bases creadas por versiones anteriores;
 - procedencia y parámetros de análisis para corridas derivadas;

@@ -159,9 +159,9 @@ selección de datos para un análisis.
 + [X] Corridas atípicas y fallos de sensor configurables.
 + [X] Fallos y latencias del motor configurables.
 * v2 — Funcionalidad existente que se conserva
-** DONE Promediar corridas visibles sobre el rango común
-- El flujo de v3 reemplazará la selección por visibilidad por una selección
-  explícita de lotes, pero conserva la interpolación y el rango común.
+** DONE Promediar corridas seleccionadas sobre el rango común
+- El flujo de v3 usa selección explícita de filas; la visibilidad de curvas es
+  solo presentación y conserva la interpolación y el rango común.
 ** DONE Historial persistente de corridas en SQLite
 ** DONE Identificadores únicos y nombres basados en fecha
 ** DONE Estados de corrida y recuperación de operaciones interrumpidas
