@@ -179,6 +179,16 @@ class RunRepository:
         if run.uid not in session.run_uids:
             session.add_run_uid(run.uid)
 
+    def delete_session(self, session_uid: str) -> None:
+        """Delete an empty session after its raw runs have been removed."""
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "DELETE FROM sessions WHERE uid = ?",
+                (session_uid,),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("No se encontró la sesión a eliminar")
+
     def close(self) -> None:
         with self._lock:
             self._connection.close()

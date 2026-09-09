@@ -4,6 +4,17 @@ from app.models import MeasurementSession, SessionKind
 from app.run_repository import RunRepository
 
 
+def test_repository_deletes_an_empty_session(tmp_path):
+    repository = RunRepository(tmp_path / "runs.sqlite3")
+    session = MeasurementSession("Agua", SessionKind.SAMPLE, expected_runs=20)
+    repository.save_session(session)
+
+    repository.delete_session(session.uid)
+
+    assert repository.get_session(session.uid) is None
+    repository.close()
+
+
 def test_sessions_with_the_same_sample_name_are_persisted_separately(tmp_path):
     repository = RunRepository(tmp_path / "runs.sqlite3")
     first = MeasurementSession("Agua", SessionKind.SAMPLE, expected_runs=20)

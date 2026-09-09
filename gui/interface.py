@@ -556,6 +556,14 @@ class ControlInterface:
                 policy=dpg.mvTable_SizingStretchProp,
             ):
                 self._add_history_table_columns()
+        with dpg.popup(header_tag, mousebutton=dpg.mvMouseButton_Right):
+            dpg.add_text(f"Lote: {session.label}")
+            dpg.add_separator()
+            dpg.add_menu_item(
+                label="Eliminar lote",
+                callback=self.delete_session_from_history,
+                user_data=session.uid,
+            )
         self._session_history_groups[session.uid] = runs_tag
         return runs_tag
 
@@ -563,6 +571,44 @@ class ControlInterface:
         status_tag = self._session_history_status_tag(session.uid)
         if dpg.does_item_exist(status_tag):
             dpg.set_value(status_tag, f"Estado: {session.status.value}")
+
+    def delete_session_from_history(self, _sender, _value, session_uid: str) -> None:
+        """Delete a batch only when no derived result still needs its raw data."""
+        if (
+            self._active_batch_session is not None
+            and self._active_batch_session.uid == session_uid
+        ):
+            self.log("[HISTORIAL] No se puede eliminar el lote en adquisición")
+            return
+        session_runs = self._repository.list_runs_for_session(session_uid)
+        source_uids = {run.uid for run in session_runs}
+        dependents = [
+            run
+            for run in self._run_history.runs
+            if source_uids.intersection(run.source_uids)
+        ]
+        if dependents:
+            self.log(
+                "[HISTORIAL] No se puede eliminar un lote usado por: "
+                + ", ".join(run.label for run in dependents)
+            )
+            return
+
+        for persisted_run in session_runs:
+            history_run = self._run_history.get_by_uid(persisted_run.uid)
+            if history_run is not None:
+                self.delete_run(history_run)
+        try:
+            self._repository.delete_session(session_uid)
+        except ValueError as exc:
+            self.log(f"[HISTORIAL ERROR] {exc}")
+            return
+
+        header_tag = self._session_history_header_tag(session_uid)
+        if dpg.does_item_exist(header_tag):
+            dpg.delete_item(header_tag)
+        self._session_history_groups.pop(session_uid, None)
+        self.log("[HISTORIAL] Lote eliminado")
 
     def save_session_name(self, _sender, _value, session_uid: str) -> None:
         self.rename_session(
