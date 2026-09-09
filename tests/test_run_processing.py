@@ -5,6 +5,7 @@ import pytest
 from app.models import RunRecord, RunStatus
 from app.run_processing import (
     average_runs,
+    average_runs_with_statistics,
     averageable_runs,
     format_peak_summary,
     interpolate,
@@ -72,6 +73,35 @@ def test_averageable_runs_excludes_incomplete_and_derived_runs():
     derived.status = RunStatus.COMPLETED
 
     assert averageable_runs([completed, pending, derived]) == [completed]
+
+
+def test_average_runs_with_statistics_tracks_repeatability():
+    first = make_run(
+        1,
+        [
+            MeasurementPoint(0.0, 0.0),
+            MeasurementPoint(10.0, 1.0),
+        ],
+    )
+    second = make_run(
+        2,
+        [
+            MeasurementPoint(5.0, 1.0),
+            MeasurementPoint(15.0, 3.0),
+        ],
+    )
+
+    result = average_runs_with_statistics([first, second])
+
+    assert result.measurements == [
+        MeasurementPoint(5.0, 0.75),
+        MeasurementPoint(10.0, 1.5),
+    ]
+    assert [point.standard_deviation_v for point in result.points] == pytest.approx(
+        [0.25, 0.5]
+    )
+    assert [point.sample_count for point in result.points] == [2, 2]
+    assert result.source_uids == (first.uid, second.uid)
 
 
 def test_average_runs_interpolates_to_common_grid():

@@ -1,10 +1,38 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from app.models import RunRecord, RunStatus
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import MeasurementPoint
+
+
+@dataclass(frozen=True)
+class AveragePoint:
+    """A point in an averaged curve and its repeatability statistics."""
+
+    position_mm: float
+    voltage_v: float
+    standard_deviation_v: float
+    sample_count: int
+
+
+@dataclass(frozen=True)
+class AverageResult:
+    """Average of several runs on a shared position grid."""
+
+    points: tuple[AveragePoint, ...]
+    source_uids: tuple[str, ...]
+
+    @property
+    def measurements(self) -> list[MeasurementPoint]:
+        """Return the averaged curve in the format used by the plotter."""
+        return [
+            MeasurementPoint(point.position_mm, point.voltage_v)
+            for point in self.points
+        ]
 
 
 def interpolate(
@@ -45,8 +73,9 @@ def averageable_runs(runs: Sequence[RunRecord]) -> list[RunRecord]:
     ]
 
 
-def average_runs(runs: Sequence[RunRecord]) -> list[MeasurementPoint]:
-    """Average runs on a shared grid over their common position range."""
+def _common_positions(
+    runs: Sequence[RunRecord],
+) -> tuple[list[CalibrationCurve], list[float]]:
     if not runs:
         raise ValueError("Se necesita al menos una corrida para promediar")
     if any(not run.measurements for run in runs):
@@ -72,21 +101,50 @@ def average_runs(runs: Sequence[RunRecord]) -> list[MeasurementPoint]:
             for index in range(sample_count)
         ]
 
+    return curves, positions
+
+
+def _interpolated_values(
+    curves: Sequence[CalibrationCurve],
+    position: float,
+) -> list[float]:
     return [
-        MeasurementPoint(
-            position_mm=position,
-            voltage_v=sum(
-                curve.interpolate(
-                    [point.position_mm for point in curve.measurements],
-                    [point.voltage_v for point in curve.measurements],
-                    position,
-                )
-                for curve in curves
-            )
-            / len(curves),
+        curve.interpolate(
+            [point.position_mm for point in curve.measurements],
+            [point.voltage_v for point in curve.measurements],
+            position,
         )
-        for position in positions
+        for curve in curves
     ]
+
+
+def average_runs_with_statistics(runs: Sequence[RunRecord]) -> AverageResult:
+    """Average runs and calculate point-wise repeatability statistics."""
+    curves, positions = _common_positions(runs)
+    points = []
+
+    for position in positions:
+        values = _interpolated_values(curves, position)
+        mean = sum(values) / len(values)
+        variance = sum((value - mean) ** 2 for value in values) / len(values)
+        points.append(
+            AveragePoint(
+                position_mm=position,
+                voltage_v=mean,
+                standard_deviation_v=math.sqrt(variance),
+                sample_count=len(values),
+            )
+        )
+
+    return AverageResult(
+        points=tuple(points),
+        source_uids=tuple(run.uid for run in runs),
+    )
+
+
+def average_runs(runs: Sequence[RunRecord]) -> list[MeasurementPoint]:
+    """Average runs on a shared grid over their common position range."""
+    return average_runs_with_statistics(runs).measurements
 
 
 def format_peak_summary(
