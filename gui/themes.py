@@ -5,6 +5,9 @@ import dearpygui.dearpygui as dpg
 CONNECTED_THEME = "theme_button_connected"
 DISCONNECTED_THEME = "theme_button_disconnected"
 DANGER_THEME = "theme_button_danger"
+SELECTED_HISTORY_ROW_THEME = "theme_selected_history_row"
+HISTORY_SELECTABLE_THEME = "theme_history_selectable"
+HISTORY_TABLE_THEME = "theme_history_table"
 
 
 def create_button_themes() -> None:
@@ -42,6 +45,42 @@ def create_button_themes() -> None:
         dpg.add_theme_color(
             dpg.mvThemeCol_ButtonActive,
             (55, 55, 55, 255),
+            category=dpg.mvThemeCat_Core,
+        )
+
+    with dpg.theme(tag=HISTORY_TABLE_THEME), dpg.theme_component(dpg.mvTable):
+        dpg.add_theme_color(
+            dpg.mvThemeCol_Header,
+            (0, 0, 0, 0),
+            category=dpg.mvThemeCat_Core,
+        )
+        dpg.add_theme_color(
+            dpg.mvThemeCol_HeaderActive,
+            (0, 0, 0, 0),
+            category=dpg.mvThemeCat_Core,
+        )
+
+    with dpg.theme(tag=HISTORY_SELECTABLE_THEME), dpg.theme_component(dpg.mvSelectable):
+        dpg.add_theme_color(
+            dpg.mvThemeCol_HeaderHovered,
+            (58, 105, 160, 180),
+            category=dpg.mvThemeCat_Core,
+        )
+        dpg.add_theme_color(
+            dpg.mvThemeCol_HeaderActive,
+            (45, 84, 130, 210),
+            category=dpg.mvThemeCat_Core,
+        )
+
+    with dpg.theme(tag=SELECTED_HISTORY_ROW_THEME), dpg.theme_component(dpg.mvTableRow):
+        dpg.add_theme_color(
+            dpg.mvThemeCol_TableRowBg,
+            (45, 84, 130, 210),
+            category=dpg.mvThemeCat_Core,
+        )
+        dpg.add_theme_color(
+            dpg.mvThemeCol_TableRowBgAlt,
+            (45, 84, 130, 210),
             category=dpg.mvThemeCat_Core,
         )
 

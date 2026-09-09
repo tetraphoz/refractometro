@@ -31,7 +31,14 @@ from app.session_processing import average_session_run, calibration_session_run
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import BatchProgress, MeasurementPoint
 from gui.plot_view import update_curve
-from gui.themes import DANGER_THEME, create_button_themes, set_connection_button_visual
+from gui.themes import (
+    DANGER_THEME,
+    HISTORY_SELECTABLE_THEME,
+    HISTORY_TABLE_THEME,
+    SELECTED_HISTORY_ROW_THEME,
+    create_button_themes,
+    set_connection_button_visual,
+)
 from storage.image_plot import export_run_plot_png
 
 
@@ -108,6 +115,7 @@ class ControlInterface:
         self._active_batch_session: MeasurementSession | None = None
         self._batch_runs: dict[int, RunRecord] = {}
         self._session_history_groups: dict[str, str] = {}
+        self._selected_run_ids: set[int] = set()
 
     # Helpers
     def log(
@@ -248,17 +256,22 @@ class ControlInterface:
 
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
         # Configure the buttons of a history row (do not touch peak labels here).
-        tags = [
-            f"hist_guardar_{run_id}",
-            f"hist_corregir_{run_id}",
-            f"hist_peaks_{run_id}",
-            f"hist_exportar_{run_id}",
-            f"hist_proveniencia_{run_id}",
-            f"hist_eliminar_{run_id}",
-        ]
-        for tag in tags:
-            if dpg.does_item_exist(tag):
-                dpg.configure_item(tag, enabled=enabled)
+        prefixes = (
+            "hist_guardar",
+            "hist_corregir",
+            "hist_peaks",
+            "hist_exportar",
+            "hist_proveniencia",
+            "hist_eliminar",
+        )
+        for context_index in range(5):
+            suffix = (
+                f"_{run_id}" if context_index == 0 else f"_{run_id}_{context_index}"
+            )
+            for prefix in prefixes:
+                tag = f"{prefix}{suffix}"
+                if dpg.does_item_exist(tag):
+                    dpg.configure_item(tag, enabled=enabled)
 
     def _set_failed_run_buttons_state(self, run: RunRecord) -> None:
         """Leave a failed run removable and enable useful context actions."""
@@ -406,10 +419,6 @@ class ControlInterface:
                 dpg.set_value(peaks_tag, [xs, ys])
                 dpg.configure_item(peaks_tag, show=bool(peaks))
 
-            # update history peaks label for this run
-            peaks_label_tag = f"hist_peaks_text_{run_id}"
-            if dpg.does_item_exist(peaks_label_tag):
-                dpg.set_value(peaks_label_tag, format_peak_summary(peaks))
         except (ValueError, IndexError, KeyError, RuntimeError) as exc:
             # best-effort: don't break UI if peak finding fails; record for debugging
             self.log(f"[PEAKS ERROR] {exc}")
@@ -456,10 +465,6 @@ class ControlInterface:
                 ],
             )
             dpg.configure_item(peaks_tag, show=bool(run.peaks))
-            dpg.set_value(
-                f"hist_peaks_text_{run.id}",
-                format_peak_summary(run.peaks),
-            )
             self.update_history_text(run)
 
     def register_run(
@@ -553,9 +558,13 @@ class ControlInterface:
                 tag=runs_tag,
                 header_row=True,
                 resizable=True,
+                row_background=True,
+                borders_innerH=True,
+                borders_outerH=True,
                 policy=dpg.mvTable_SizingStretchProp,
             ):
                 self._add_history_table_columns()
+        dpg.bind_item_theme(runs_tag, HISTORY_TABLE_THEME)
         with dpg.popup(header_tag, mousebutton=dpg.mvMouseButton_Right):
             dpg.add_text(f"Lote: {session.label}")
             dpg.add_separator()
@@ -707,9 +716,6 @@ class ControlInterface:
             if history_run is None:
                 continue
             self.toggle_run_visibility(None, visible, history_run.id)
-            checkbox_tag = f"hist_visible_{history_run.id}"
-            if dpg.does_item_exist(checkbox_tag):
-                dpg.set_value(checkbox_tag, visible)
 
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
@@ -729,13 +735,38 @@ class ControlInterface:
                     default_value=True,
                     callback=self.toggle_run_visibility,
                     user_data=run.id,
+                    indent=8,
                 )
             with dpg.table_cell():
-                dpg.add_text(run.label, tag=run.text_tag)
-                dpg.add_text("", tag=f"hist_laser_text_{run.id}")
+                dpg.add_selectable(
+                    label=run.label,
+                    tag=run.text_tag,
+                    callback=self.toggle_run_selection,
+                    user_data=run.id,
+                    span_columns=False,
+                )
+                dpg.add_selectable(
+                    label="",
+                    tag=f"hist_laser_text_{run.id}",
+                    callback=self.toggle_run_selection,
+                    user_data=run.id,
+                    span_columns=False,
+                )
             with dpg.table_cell():
-                dpg.add_text("", tag=f"hist_status_text_{run.id}")
-                dpg.add_text("", tag=f"hist_peaks_text_{run.id}")
+                dpg.add_selectable(
+                    label="",
+                    tag=f"hist_status_text_{run.id}",
+                    callback=self.toggle_run_selection,
+                    user_data=run.id,
+                    span_columns=False,
+                )
+                dpg.add_selectable(
+                    label="",
+                    tag=f"hist_peaks_text_{run.id}",
+                    callback=self.toggle_run_selection,
+                    user_data=run.id,
+                    span_columns=False,
+                )
 
         context_targets = [
             f"hist_visible_{run.id}",
@@ -746,37 +777,188 @@ class ControlInterface:
         ]
         for index, context_target in enumerate(context_targets):
             with dpg.popup(context_target, mousebutton=dpg.mvMouseButton_Right):
-                self._add_run_context_actions(run, tagged=index == 0)
+                self._add_run_context_actions(run, context_index=index)
 
+        for tag in (
+            run.text_tag,
+            f"hist_status_text_{run.id}",
+            f"hist_peaks_text_{run.id}",
+            f"hist_laser_text_{run.id}",
+        ):
+            dpg.bind_item_theme(tag, HISTORY_SELECTABLE_THEME)
         self.update_history_text(run)
         dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
+        self._update_context_menu_visibility()
 
-    def _add_run_context_actions(self, run: RunRecord, *, tagged: bool) -> None:
-        """Add the same context actions to every interactive history cell."""
-        dpg.add_text(run.label)
-        dpg.add_separator()
+    def _set_run_selected(self, run_id: int, selected: bool) -> None:
+        run = self._run_history.get(run_id)
+        if run is None:
+            return
+        if selected:
+            self._selected_run_ids.add(run_id)
+            dpg.bind_item_theme(run.row_tag, SELECTED_HISTORY_ROW_THEME)
+        else:
+            self._selected_run_ids.discard(run_id)
+            dpg.bind_item_theme(run.row_tag, 0)
+        for tag in (
+            run.text_tag,
+            f"hist_status_text_{run.id}",
+            f"hist_peaks_text_{run.id}",
+            f"hist_laser_text_{run.id}",
+        ):
+            if dpg.does_item_exist(tag):
+                dpg.set_value(tag, selected)
+        self._update_bulk_action_labels()
+
+    def toggle_run_selection(self, sender, selected: bool, run_id: int) -> None:
+        """Select a table row, extending or toggling it with Shift-click."""
+        shift_pressed = dpg.is_key_down(dpg.mvKey_LShift) or dpg.is_key_down(
+            dpg.mvKey_RShift
+        )
+        if not shift_pressed:
+            for selected_run_id in list(self._selected_run_ids):
+                if selected_run_id != run_id:
+                    self._set_run_selected(selected_run_id, False)
+            selected = True
+        self._set_run_selected(run_id, selected)
+        if dpg.does_item_exist(sender):
+            dpg.set_value(sender, selected)
+
+    def _update_bulk_action_labels(self) -> None:
+        count = len(self._selected_run_ids)
+        label = (
+            "Fila actual"
+            if count == 0
+            else f"{count} fila{'s' if count != 1 else ''} seleccionada{'s' if count != 1 else ''}"
+        )
+        for run in self._run_history.runs:
+            for context_index in range(5):
+                suffix = (
+                    f"_{run.id}" if context_index == 0 else f"_{run.id}_{context_index}"
+                )
+                tag = f"hist_bulk_selection{suffix}"
+                if dpg.does_item_exist(tag):
+                    dpg.set_value(tag, label)
+        self._update_context_menu_visibility()
+
+    def _update_context_menu_visibility(self) -> None:
+        """Show only bulk actions when multiple history rows are selected."""
+        multiple_selected = len(self._selected_run_ids) > 1
+        individual_prefixes = (
+            "hist_menu_title",
+            "hist_menu_individual_start",
+            "hist_guardar",
+            "hist_corregir",
+            "hist_peaks",
+            "hist_proveniencia",
+            "hist_exportar",
+            "hist_eliminar",
+        )
+        bulk_prefixes = (
+            "hist_menu_bulk_start",
+            "hist_bulk_selection",
+            "hist_bulk_show",
+            "hist_bulk_hide",
+            "hist_bulk_export",
+            "hist_bulk_delete",
+        )
+        for run in self._run_history.runs:
+            for context_index in range(5):
+                suffix = (
+                    f"_{run.id}" if context_index == 0 else f"_{run.id}_{context_index}"
+                )
+                for prefix in individual_prefixes:
+                    tag = f"{prefix}{suffix}"
+                    if dpg.does_item_exist(tag):
+                        dpg.configure_item(tag, show=not multiple_selected)
+                for prefix in bulk_prefixes:
+                    tag = f"{prefix}{suffix}"
+                    if dpg.does_item_exist(tag):
+                        dpg.configure_item(tag, show=multiple_selected)
+
+    def _selected_or_context_runs(self, context_run_id: int) -> list[RunRecord]:
+        selected_runs = [
+            run for run in self._run_history.runs if run.id in self._selected_run_ids
+        ]
+        if selected_runs:
+            return selected_runs
+        context_run = self._run_history.get(context_run_id)
+        return [context_run] if context_run is not None else []
+
+    def set_selected_run_visibility(
+        self,
+        _sender,
+        _value,
+        context_run_id: int,
+        *,
+        visible: bool,
+    ) -> None:
+        for run in self._selected_or_context_runs(context_run_id):
+            self.toggle_run_visibility(None, visible, run.id)
+
+    def export_selected_runs(self, _sender, _value, context_run_id: int) -> None:
+        for run in self._selected_or_context_runs(context_run_id):
+            self.on_click_export_run(_sender, _value, run.id)
+
+    def delete_selected_runs(self, _sender, _value, context_run_id: int) -> None:
+        for run in list(self._selected_or_context_runs(context_run_id)):
+            self.on_click_delete_run(_sender, _value, run.id)
+
+    def _add_run_context_actions(self, run: RunRecord, *, context_index: int) -> None:
+        """Add individual and bulk actions to one history-cell context menu."""
+        suffix = f"_{run.id}" if context_index == 0 else f"_{run.id}_{context_index}"
+        dpg.add_text(run.label, tag=f"hist_menu_title{suffix}")
+        dpg.add_separator(tag=f"hist_menu_individual_start{suffix}")
         actions = [
             ("Guardar CSV", "hist_guardar", self.on_click_save_run),
             ("Corregir con blanco", "hist_corregir", self.on_click_correct_run),
             ("Mostrar u ocultar picos", "hist_peaks", self.on_click_peaks),
             ("Ver información", "hist_proveniencia", self.show_run_information),
             ("Exportar PNG", "hist_exportar", self.on_click_export_run),
+            ("Eliminar", "hist_eliminar", self.on_click_delete_run),
         ]
         for label, tag_prefix, callback in actions:
-            kwargs = {"tag": f"{tag_prefix}_{run.id}"} if tagged else {}
             dpg.add_menu_item(
                 label=label,
+                tag=f"{tag_prefix}{suffix}",
                 callback=callback,
                 user_data=run.id,
-                **kwargs,
             )
-        dpg.add_separator()
-        kwargs = {"tag": f"hist_eliminar_{run.id}"} if tagged else {}
+        dpg.add_separator(tag=f"hist_menu_bulk_start{suffix}")
+        dpg.add_text("Filas seleccionadas", tag=f"hist_bulk_selection{suffix}")
         dpg.add_menu_item(
-            label="Eliminar",
-            callback=self.on_click_delete_run,
+            label="Mostrar curvas seleccionadas",
+            tag=f"hist_bulk_show{suffix}",
+            callback=lambda sender, value, run_id: self.set_selected_run_visibility(
+                sender,
+                value,
+                run_id,
+                visible=True,
+            ),
             user_data=run.id,
-            **kwargs,
+        )
+        dpg.add_menu_item(
+            label="Ocultar curvas seleccionadas",
+            tag=f"hist_bulk_hide{suffix}",
+            callback=lambda sender, value, run_id: self.set_selected_run_visibility(
+                sender,
+                value,
+                run_id,
+                visible=False,
+            ),
+            user_data=run.id,
+        )
+        dpg.add_menu_item(
+            label="Exportar PNG seleccionadas",
+            tag=f"hist_bulk_export{suffix}",
+            callback=self.export_selected_runs,
+            user_data=run.id,
+        )
+        dpg.add_menu_item(
+            label="Eliminar seleccionadas",
+            tag=f"hist_bulk_delete{suffix}",
+            callback=self.delete_selected_runs,
+            user_data=run.id,
         )
 
     def update_history_text(self, run: RunRecord) -> None:
@@ -791,26 +973,30 @@ class ControlInterface:
         peak_text = format_peak_summary(run.peaks, limit=1) if run.peaks else "—"
 
         if dpg.does_item_exist(run.text_tag):
-            dpg.set_value(run.text_tag, run.label)
+            dpg.configure_item(run.text_tag, label=run.label)
         status_tag = f"hist_status_text_{run.id}"
         if dpg.does_item_exist(status_tag):
-            dpg.set_value(status_tag, status_text)
+            dpg.configure_item(status_tag, label=status_text)
         peaks_tag = f"hist_peaks_text_{run.id}"
         if dpg.does_item_exist(peaks_tag):
-            dpg.set_value(peaks_tag, peak_text)
+            dpg.configure_item(peaks_tag, label=peak_text)
 
         laser_text = ""
         if run.laser_on_time_s is not None:
             laser_text = f"Láser encendido: {run.laser_on_time_s:.2f}s"
         laser_tag = f"hist_laser_text_{run.id}"
         if dpg.does_item_exist(laser_tag):
-            dpg.set_value(laser_tag, laser_text)
+            dpg.configure_item(laser_tag, label=laser_text)
 
     def toggle_run_visibility(self, sender, value, user_data) -> None:
         run = self._run_history.get(user_data)
 
         if run is None:
             return
+
+        visibility_tag = f"hist_visible_{run.id}"
+        if dpg.does_item_exist(visibility_tag):
+            dpg.set_value(visibility_tag, value)
 
         # show/hide the curve and the peaks markers
         if dpg.does_item_exist(run.curve_tag):
@@ -856,6 +1042,7 @@ class ControlInterface:
         if dpg.does_item_exist(run.row_tag):
             dpg.delete_item(run.row_tag)
 
+        self._selected_run_ids.discard(run.id)
         self._run_history.remove(run)
 
     def on_click_export_run(self, sender, app_data, user_data) -> None:
@@ -982,7 +1169,6 @@ class ControlInterface:
             return
 
         peaks_tag = f"peaks_{run.id}"
-        peaks_label_tag = f"hist_peaks_text_{run.id}"
 
         # Determine current visibility of the peaks series
         visible = False
@@ -1022,10 +1208,6 @@ class ControlInterface:
                 self.log(f"[PEAKS ERROR] {exc}")
                 return
             run.peaks = peaks
-
-            # update history label because we just computed peaks
-            if dpg.does_item_exist(peaks_label_tag):
-                dpg.set_value(peaks_label_tag, format_peak_summary(peaks))
 
         # Update/create scatter series and show it
         xs = [p.position_mm for p in peaks]
@@ -1546,10 +1728,6 @@ class ControlInterface:
                 ],
             )
             dpg.configure_item(peaks_tag, show=bool(run.peaks))
-            dpg.set_value(
-                f"hist_peaks_text_{run.id}",
-                format_peak_summary(run.peaks),
-            )
             self.update_history_text(run)
             self._set_run_buttons_enabled(run.id, True)
 
@@ -1888,11 +2066,6 @@ class ControlInterface:
                     if dpg.does_item_exist(peaks_tag):
                         dpg.set_value(peaks_tag, [[], []])
                         dpg.configure_item(peaks_tag, show=False)
-
-                # update history peaks label for this run
-                peaks_label_tag = f"hist_peaks_text_{run.id}"
-                if dpg.does_item_exist(peaks_label_tag):
-                    dpg.set_value(peaks_label_tag, format_peak_summary(peaks))
 
                 self.update_history_text(run)
                 # enable row buttons now that run finished
@@ -2298,9 +2471,16 @@ class ControlInterface:
                                     tag="historial_general",
                                     header_row=True,
                                     resizable=True,
+                                    row_background=True,
+                                    borders_innerH=True,
+                                    borders_outerH=True,
                                     policy=dpg.mvTable_SizingStretchProp,
                                 ):
                                     self._add_history_table_columns()
+                                dpg.bind_item_theme(
+                                    "historial_general",
+                                    HISTORY_TABLE_THEME,
+                                )
 
                             dpg.add_button(
                                 label="Promediar selección",
