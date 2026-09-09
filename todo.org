@@ -155,12 +155,12 @@ selección de datos para un análisis.
 + [X] Calibración promedio sin muestra.
 + [ ] Corrección y detección del pico final.
 + [X] Persistencia y restauración de la procedencia.
-** TODO Mejorar el simulador
-+ [ ] Ruido configurable.
-+ [ ] Deriva configurable.
-+ [ ] Picos con posición e intensidad configurables.
-+ [ ] Corridas atípicas y fallos de sensor configurables.
-+ [ ] Fallos y latencias del motor configurables.
+** DONE Mejorar el simulador
++ [X] Ruido configurable.
++ [X] Deriva configurable.
++ [X] Picos con posición e intensidad configurables.
++ [X] Corridas atípicas y fallos de sensor configurables.
++ [X] Fallos y latencias del motor configurables.
 * v2 — Funcionalidad existente que se conserva
 ** DONE Promediar corridas visibles sobre el rango común
 - El flujo de v3 reemplazará la selección por visibilidad por una selección
