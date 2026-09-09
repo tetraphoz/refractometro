@@ -400,33 +400,32 @@ class ControlInterface:
             parent="historial_lista",
             default_open=True,
         ):
+            dpg.add_text("Nombre de muestra")
             with dpg.group(horizontal=True):
-                dpg.add_text("Nombre:")
                 dpg.add_input_text(
                     default_value=session.label,
                     tag=f"hist_session_name_{session.uid}",
                     callback=self.rename_session,
                     user_data=session.uid,
                     on_enter=True,
-                    width=180,
+                    width=150,
                 )
                 dpg.add_button(
                     label="Guardar",
                     callback=self.save_session_name,
                     user_data=session.uid,
-                    width=70,
+                    width=65,
                 )
-            with dpg.group(horizontal=True):
-                dpg.add_checkbox(
-                    label="Mostrar barridos crudos",
-                    default_value=True,
-                    callback=self.toggle_session_visibility,
-                    user_data=session.uid,
-                )
-                dpg.add_text(
-                    f"Estado: {session.status.value}",
-                    tag=self._session_history_status_tag(session.uid),
-                )
+            dpg.add_checkbox(
+                label="Mostrar barridos crudos",
+                default_value=True,
+                callback=self.toggle_session_visibility,
+                user_data=session.uid,
+            )
+            dpg.add_text(
+                f"Estado: {session.status.value}",
+                tag=self._session_history_status_tag(session.uid),
+            )
             dpg.add_button(
                 label=(
                     "Crear calibración promedio"
@@ -2059,10 +2058,12 @@ class ControlInterface:
                                 tag="historial_lista",
                                 height=400,
                                 border=True,
+                                horizontal_scrollbar=False,
                             ):
+                                dpg.add_text("Resultados individuales y derivados")
                                 dpg.add_text(
-                                    "Resultados individuales y derivados "
-                                    "(clic derecho en cualquier celda para acciones)"
+                                    "Clic derecho en una celda para acciones.",
+                                    wrap=280,
                                 )
                                 with dpg.table(
                                     tag="historial_general",
