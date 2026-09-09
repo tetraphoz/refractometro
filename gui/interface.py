@@ -121,6 +121,25 @@ class ControlInterface:
             "\n".join(self._log_lines),
         )
 
+    def zoom_plot(self, factor: float) -> None:
+        """Zoom both axes around their centre for touchpad-friendly controls."""
+        try:
+            x_min, x_max = dpg.get_axis_limits("position_axis")
+            y_min, y_max = dpg.get_axis_limits("voltage_axis")
+        except (KeyError, RuntimeError):
+            return
+        x_center = (x_min + x_max) / 2
+        y_center = (y_min + y_max) / 2
+        x_radius = (x_max - x_min) * factor / 2
+        y_radius = (y_max - y_min) * factor / 2
+        dpg.set_axis_limits("position_axis", x_center - x_radius, x_center + x_radius)
+        dpg.set_axis_limits("voltage_axis", y_center - y_radius, y_center + y_radius)
+
+    def reset_plot_view(self) -> None:
+        """Restore the default full measurement range after pan or zoom."""
+        dpg.set_axis_limits("position_axis", self.X_AXIS_MIN, self.X_AXIS_MAX)
+        dpg.set_axis_limits("voltage_axis", 0.0, 3.0)
+
     def _update_plot_hover_information(self) -> None:
         """Identify the nearest visible curve using plot-space coordinates."""
         if not dpg.does_item_exist("curva_hover_tooltip"):
@@ -2266,12 +2285,24 @@ class ControlInterface:
                             )
 
                     with dpg.table_cell():
-                        dpg.add_text(
-                            "Navegación: arrastra para desplazar; usa la rueda para zoom."
-                        )
+                        with dpg.group(horizontal=True):
+                            dpg.add_text("Navegación: arrastra para desplazar.")
+                            dpg.add_button(
+                                label="Zoom +",
+                                callback=lambda: self.zoom_plot(0.75),
+                            )
+                            dpg.add_button(
+                                label="Zoom -",
+                                callback=lambda: self.zoom_plot(1.0 / 0.75),
+                            )
+                            dpg.add_button(
+                                label="Ajustar vista",
+                                callback=self.reset_plot_view,
+                            )
                         with dpg.plot(
                             label="Voltaje vs Posición",
                             tag="voltage_plot",
+                            crosshairs=True,
                             height=800,
                             width=-1,
                         ):
