@@ -43,6 +43,17 @@ class ControlInterface:
     # Rango fijo del eje horizontal del gráfico (mm)
     X_AXIS_MIN = 0
     X_AXIS_MAX = 12
+    # Color-blind-friendly categorical palette used by both curves and legend.
+    CURVE_COLORS = (
+        (86, 180, 233, 255),
+        (230, 159, 0, 255),
+        (0, 158, 115, 255),
+        (204, 121, 167, 255),
+        (240, 228, 66, 255),
+        (0, 114, 178, 255),
+        (213, 94, 0, 255),
+        (153, 153, 153, 255),
+    )
 
     # Carpeta donde se escriben los CSV que el controlador genera durante
     # una corrida en curso (registro en vivo). El guardado que el usuario
@@ -134,12 +145,36 @@ class ControlInterface:
         if dpg.does_item_exist("leyenda_lateral"):
             dpg.configure_item("leyenda_lateral", show=value)
 
+    @classmethod
+    def _curve_color(cls, run_id: int) -> tuple[int, int, int, int]:
+        return cls.CURVE_COLORS[(run_id - 1) % len(cls.CURVE_COLORS)]
+
+    def _curve_theme(self, run_id: int) -> str:
+        """Create the plot theme shared by a curve and its peak markers."""
+        theme_tag = f"tema_curva_{run_id}"
+        if not dpg.does_item_exist(theme_tag):
+            with dpg.theme(tag=theme_tag):
+                with dpg.theme_component(dpg.mvLineSeries):
+                    dpg.add_theme_color(
+                        dpg.mvPlotCol_Line,
+                        self._curve_color(run_id),
+                        category=dpg.mvThemeCat_Plots,
+                    )
+                with dpg.theme_component(dpg.mvScatterSeries):
+                    dpg.add_theme_color(
+                        dpg.mvPlotCol_MarkerFill,
+                        self._curve_color(run_id),
+                        category=dpg.mvThemeCat_Plots,
+                    )
+        return theme_tag
+
     def _add_side_legend_entry(self, run: RunRecord) -> None:
-        """Add one curve label outside the plot, where large batches fit."""
+        """Add one color-matched curve label outside the plot."""
         if not dpg.does_item_exist("leyenda_lista"):
             return
         dpg.add_text(
             run.label,
+            color=self._curve_color(run.id),
             tag=f"leyenda_{run.id}",
             parent="leyenda_lista",
             wrap=250,
@@ -218,6 +253,7 @@ class ControlInterface:
             parent="voltage_axis",
             tag=curve_tag,
         )
+        dpg.bind_item_theme(curve_tag, self._curve_theme(run_id))
 
         # create empty scatter series for visualizing peaks for this run
         peaks_tag = f"peaks_{run_id}"
@@ -265,6 +301,7 @@ class ControlInterface:
             parent="voltage_axis",
             tag=curve_tag,
         )
+        dpg.bind_item_theme(curve_tag, self._curve_theme(run_id))
 
         # create empty scatter series for visualizing peaks for this run
         peaks_tag = f"peaks_{run_id}"
@@ -328,6 +365,7 @@ class ControlInterface:
                 parent="voltage_axis",
                 tag=run.curve_tag,
             )
+            dpg.bind_item_theme(run.curve_tag, self._curve_theme(run.id))
             dpg.add_scatter_series(
                 [],
                 [],
@@ -529,6 +567,7 @@ class ControlInterface:
             parent="voltage_axis",
             tag=derived.curve_tag,
         )
+        dpg.bind_item_theme(derived.curve_tag, self._curve_theme(derived.id))
         dpg.add_scatter_series(
             [],
             [],
@@ -1904,7 +1943,9 @@ class ControlInterface:
                     "     (blanco) a la corrida elegida, punto a\n"
                     "     punto, y agrega el resultado como una nueva\n"
                     "     curva corregida;\n"
-                    "   - '✕' elimina esa corrida del historial."
+                    "   - '✕' elimina esa corrida del historial.\n"
+                    "7. Hacer clic derecho sobre una celda del historial abre "
+                    "el menú de acciones de esa corrida."
                 )
 
                 dpg.add_button(
@@ -2144,10 +2185,6 @@ class ControlInterface:
                                 horizontal_scrollbar=False,
                             ):
                                 dpg.add_text("Resultados individuales y derivados")
-                                dpg.add_text(
-                                    "Clic derecho en una celda para acciones.",
-                                    wrap=280,
-                                )
                                 with dpg.table(
                                     tag="historial_general",
                                     header_row=True,
