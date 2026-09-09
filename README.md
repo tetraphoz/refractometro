@@ -12,7 +12,11 @@ El sistema coordina:
 - almacenamiento/importación de corridas en **CSV**;
 - análisis básico de corridas, picos y correcciones por referencia.
 
-![interface](./interface.jpg)
+![Interfaz del refractómetro v3](./docs/interface-v3.png)
+
+La interfaz v3 organiza la adquisición por lotes, conserva cada barrido crudo,
+separa la selección analítica de la visibilidad de las curvas y muestra el
+promedio, el estado y la calidad de las corridas en el historial.
 
 La aplicación también incluye un **modo de simulación** para probar la interfaz y el flujo experimental sin conectar el hardware real.
 
