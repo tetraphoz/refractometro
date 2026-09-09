@@ -1,64 +1,170 @@
-* Mantenimiento
-** CANCELLED No implementar movimiento de labels de la gráfica
-  Ocultar la leyenda es suficiente; mover labels no justifica la complejidad.
-** TODO Limpiar codebase
-+ [ ] Eliminar código redundante
-+ [ ] Separar código en inglés de la interfaz en español
-+ [ ] Mantener separation of concerns y reducir responsabilidades de interface.py
-+ [X] Extraer temas y actualización de gráficas de interface.py
+#+title: Roadmap de Refractómetro
 
-* Reproducibilidad
-** TODO Agregar entidades de proyecto, experimento y muestra
-+ [ ] Operador y notas
-+ [ ] Material y concentración
-+ [ ] Temperatura y condiciones ambientales
-** TODO Crear perfiles persistentes de calibración
-+ [ ] Versionar perfiles
-+ [ ] Asociar calibración con sensor y motor
-+ [ ] Seleccionar calibración para una corrida
-+ [ ] Guardar el UID de calibración en resultados corregidos
-** TODO Guardar parámetros de análisis
-+ [ ] Configuración de detección de picos
-+ [ ] Suavizado y corrección de línea base
-+ [ ] Resolución de interpolación
-+ [ ] Rechazo de valores atípicos
+* v3 — Objetivo del producto
+
+El refractómetro debe ayudar a encontrar el pico asociado al cambio de índice de
+refracción de una sustancia. El flujo principal de laboratorio será adquirir
+muchos barridos, reducir el ruido mediante un promedio reproducible y analizar
+el pico de la curva promedio. Las calibraciones seguirán el mismo flujo, pero
+se adquirirán sin muestra y producirán una referencia promedio.
+
+La interfaz de v3 debe guiar este flujo de laboratorio explícitamente. La
+visibilidad de una curva sirve para visualizarla y no debe confundirse con la
+selección de datos para un análisis.
+
+* v3 — Flujo de laboratorio (prioridad inmediata)
+
+** TODO Definir el modelo de una sesión de medición
++ [ ] Distinguir corridas crudas, lotes de adquisición y resultados derivados.
++ [ ] Identificar una sesión con un UID y conservar sus corridas fuente.
++ [ ] Registrar el propósito de la sesión: muestra, blanco/calibración o control.
++ [ ] Definir estados de sesión: preparada, adquiriendo, pausada, completada,
+  cancelada, fallida e interrumpida.
++ [ ] Decidir qué datos se pueden modificar después de completar una sesión.
+
+** TODO Implementar adquisición por lotes de barridos
++ [ ] Configurar cantidad de barridos, posiciones y tiempo de estabilización.
++ [ ] Ejecutar una cola de barridos sin solicitudes superpuestas.
++ [ ] Guardar cada barrido crudo inmediatamente al terminarlo.
++ [ ] Mostrar progreso del barrido actual y progreso total del lote.
++ [ ] Permitir cancelación segura conservando los resultados parciales.
++ [ ] Permitir pausa y reanudación sin perder la sesión.
++ [ ] Añadir reintentos configurables para un barrido fallido.
++ [ ] Registrar el motivo de cada fallo, cancelación o exclusión.
++ [ ] Recuperar un lote interrumpido después de reiniciar la aplicación.
+
+** TODO Promediar un lote de barridos
++ [ ] Seleccionar explícitamente el lote fuente, independientemente de la
++   visibilidad de sus curvas.
++ [ ] Validar que las corridas pertenezcan a un protocolo compatible.
++ [ ] Excluir corridas fallidas, canceladas, incompletas o marcadas como inválidas.
++ [ ] Interpolar las corridas a una cuadrícula común sobre el rango compartido.
++ [ ] Calcular la curva promedio y conservar los UID de todas las fuentes.
++ [ ] Guardar los parámetros del promedio: cantidad de fuentes, rango,
++   resolución e interpolación.
++ [ ] Calcular desviación estándar y cantidad de observaciones por posición.
++ [ ] Permitir revisar y reincorporar corridas excluidas con una razón explícita.
++ [ ] Hacer visible la diferencia entre datos crudos y resultado promedio.
+
+** TODO Crear calibraciones a partir de lotes sin muestra
++ [ ] Usar el mismo protocolo de adquisición y promedio que para una muestra.
++ [ ] Identificar claramente una sesión como blanco/sin muestra.
++ [ ] Crear la curva de calibración a partir del promedio de sus barridos.
++ [ ] Evitar que una calibración se confunda con una corrida de muestra.
++ [ ] Validar estabilidad y repetibilidad antes de aceptar la calibración.
++ [ ] Asociar la calibración con sensor, motor, configuración y fecha.
++ [ ] Versionar perfiles de calibración sin sobrescribir resultados anteriores.
++ [ ] Seleccionar la calibración usada por una sesión de muestra.
++ [ ] Guardar el UID de calibración en resultados corregidos y reportes.
+
+** TODO Corregir y analizar una sesión de muestra
++ [ ] Aplicar la calibración promedio seleccionada al promedio de la muestra.
++ [ ] Conservar la curva cruda, el promedio, la calibración y la curva corregida.
++ [ ] Guardar los UID y parámetros de todas las fuentes del resultado.
++ [ ] Definir si la corrección ocurre antes o después del promedio y documentarlo.
++ [ ] Evitar producir un resultado si no existe una calibración compatible.
+
+* v3 — Detección del cambio de índice de refracción
+
+** TODO Definir el resultado físico de la medición
++ [ ] Documentar qué posición/voltaje representa el cambio de índice.
++ [ ] Definir las unidades y la relación entre la posición del pico y el índice.
+        El motor usa mm y el sensor optoelectrico voltaje
++ [ ] Separar el pico físico de otros máximos causados por ruido, artefactos o la curva de medición.
++ [ ] Definir criterios de aceptación para una medición válida.
+
+** TODO Hacer robusta la detección del pico
++ [ ] Configurar suavizado y corrección de línea base.
++ [ ] Configurar umbral de prominencia, ancho y distancia mínima entre picos.
++ [ ] Estimar incertidumbre de posición y voltaje del pico.
++ [ ] Comparar la posición del pico entre barridos del mismo lote.
++ [ ] Identificar múltiples picos y permitir seleccionar el pico de interés.
++ [ ] Rechazar o marcar picos que no sean repetibles.
++ [ ] Guardar todos los parámetros de detección junto con el resultado.
+
+** TODO Analizar calidad y repetibilidad
++ [ ] Calcular desviación estándar de la curva promedio.
++ [ ] Calcular variación de posición y voltaje del pico.
++ [ ] Calcular relación señal/ruido.
++ [ ] Detectar corridas atípicas con un criterio documentado.
++ [ ] Mostrar intervalos de confianza o incertidumbre.
++ [ ] Definir un estado de calidad para el lote y para el pico final.
++ [ ] Permitir comparar lotes repetidos de la misma muestra.
+
+* v3 — Interfaz orientada al laboratorio
+
+** TODO Rediseñar la interfaz para el flujo de trabajo
++ [ ] Separar las vistas de configuración, adquisición, revisión y resultados.
++ [ ] Guiar al usuario por pasos: preparar, adquirir, revisar, promediar y analizar.
++ [ ] Reemplazar controles ambiguos por acciones explícitas sobre lotes.
++ [ ] Mostrar por separado corridas crudas, promedios, calibraciones y corregidas.
++ [ ] Mantener la visibilidad de gráficas independiente de la selección analítica.
++ [ ] Mostrar el estado, progreso y acciones disponibles de la sesión actual.
++ [ ] Permitir revisar las fuentes y parámetros desde cada resultado derivado.
++ [ ] Mostrar advertencias cuando falten fuentes, calibración o calidad suficiente.
++ [ ] Mantener disponibles guardar, exportar y eliminar sin bloquear acciones útiles.
++ [ ] Diseñar la interfaz para que una sesión pueda repetirse sin ambigüedad.
+
 ** TODO Visualizar la proveniencia de resultados derivados
-** TODO Mostrar el grafo de dependencias entre corridas
++ [ ] Mostrar las corridas fuente de un promedio.
++ [ ] Mostrar el lote y la calibración usados por una corrección.
++ [ ] Mostrar parámetros de adquisición, promedio y detección de picos.
++ [ ] Mostrar un grafo de dependencias entre corridas y resultados.
++ [ ] Evitar eliminar fuentes necesarias sin advertir sobre sus derivados.
 
-* Flujo de laboratorio
-** DONE Seleccionar corridas visibles para promediar
-CLOSED: [2026-09-09 Wed]
-- State "DONE" from "TODO" [2026-09-09 Wed]
-** TODO Implementar protocolos de medición por lotes
-+ [ ] Cola de corridas
-+ [ ] Pausa y reanudación
-+ [ ] Reintentos configurables
-+ [ ] Promedio automático de resultados válidos
-** TODO Agregar análisis de calidad y repetibilidad
-+ [ ] Desviación estándar
-+ [ ] Variación de posición y voltaje de los picos
-+ [ ] Relación señal/ruido
-+ [ ] Detección de corridas atípicas
-+ [ ] Intervalos de confianza
+* v3 — Reproducibilidad y datos de laboratorio
+
+** TODO Agregar entidades de proyecto, experimento y muestra
++ [ ] Proyecto y experimento.
++ [ ] Muestra, material y concentración.
++ [ ] Operador y notas.
++ [ ] Temperatura y condiciones ambientales.
++ [ ] Identificación del portamuestras y configuración del equipo.
++ [ ] Fecha, hora y versión de software/protocolo.
+
+** TODO Centralizar configuración
++ [ ] Centralizar configuración de hardware.
++ [ ] Centralizar configuración de almacenamiento.
++ [ ] Centralizar parámetros de adquisición.
++ [ ] Centralizar parámetros de promedio y análisis.
++ [ ] Validar configuraciones antes de iniciar una sesión.
++ [ ] Guardar una instantánea de configuración con cada lote.
+
 ** TODO Generar reportes y paquetes de exportación
-+ [ ] Metadatos del experimento
-+ [ ] Datos crudos, corregidos y de calibración
-+ [ ] Gráficas
-+ [ ] Informe PDF
++ [ ] Incluir metadatos del experimento, muestra, operador y condiciones.
++ [ ] Incluir datos crudos, promedios, desviación, calibración y corrección.
++ [ ] Incluir gráficas de las fuentes y resultados.
++ [ ] Incluir pico, incertidumbre y métricas de calidad.
++ [ ] Incluir la procedencia completa y parámetros de análisis.
++ [ ] Exportar un paquete reproducible de datos.
++ [ ] Generar un informe PDF.
++
+* v3 — Arquitectura y calidad
 
-* Arquitectura y calidad
 ** TODO Extraer vistas y servicios de interface.py
++ [ ] Mantener DearPyGui dentro de la capa de interfaz.
++ [ ] Extraer servicios para sesiones y adquisición por lotes.
++ [ ] Extraer servicios para promedio, calibración y corrección.
++ [ ] Extraer servicios para calidad y detección de picos.
++ [ ] Mantener reglas de negocio probables sin DearPyGui.
++ [ ] Reducir callbacks que mezclan persistencia, dominio y presentación.
 ** TODO Añadir pruebas de integración de flujos completos
-** TODO Mejorar el simulador con ruido, deriva y fallos configurables
-** TODO Centralizar configuración de hardware, almacenamiento y análisis
-
-* Acabados
-** DONE Permitir ocultar la leyenda de la gráfica
-CLOSED: [2026-09-08 Tue 00:00]
-- State "DONE" from "TODO" [2026-09-08 Tue 00:00]
-** DONE Promediar múltiples corridas sobre el rango común
-CLOSED: [2026-09-08 Tue 00:00]
-- State "DONE" from "TODO" [2026-09-08 Tue 00:00]
++ [ ] Adquisición de un lote simulado.
++ [ ] Cancelación y recuperación de un lote.
++ [ ] Promedio con corridas de distinta resolución y rango.
++ [ ] Calibración promedio sin muestra.
++ [ ] Corrección y detección del pico final.
++ [ ] Persistencia y restauración de la procedencia.
+** TODO Mejorar el simulador
++ [ ] Ruido configurable.
++ [ ] Deriva configurable.
++ [ ] Picos con posición e intensidad configurables.
++ [ ] Corridas atípicas y fallos de sensor configurables.
++ [ ] Fallos y latencias del motor configurables.
+* v2 — Funcionalidad existente que se conserva
+** DONE Promediar corridas visibles sobre el rango común
+- El flujo de v3 reemplazará la selección por visibilidad por una selección
+  explícita de lotes, pero conserva la interpolación y el rango común.
 ** DONE Historial persistente de corridas en SQLite
 ** DONE Identificadores únicos y nombres basados en fecha
 ** DONE Estados de corrida y recuperación de operaciones interrumpidas
@@ -66,35 +172,39 @@ CLOSED: [2026-09-08 Tue 00:00]
 ** DONE Escritura atómica de archivos CSV
 ** DONE Seguimiento del tiempo de encendido del láser
 ** DONE Proveniencia inicial de corridas derivadas
-  - UID de corridas fuente y tipo de análisis para promedios y correcciones.
++  - UID de corridas fuente y tipo de análisis para promedios y correcciones.
 ** DONE Limitar botones de barrido y calibración hasta que haya un motor y sensor conectado
-** DONE Limitar botones dentro del historial de la corrida hasta que haya finalizado 
-  para no guardar corridas a la mitad
-** DONE Implementar una barra de progreso dentro de la sección del barrido
-** DONE Encontrar multiples picos en los barridos
-** DONE Mostrar el eje y de la grafia de  0 a 3 volts
-** DONE Mejorar separación de intereses en gui/interface.py
-** DONE La exportación a csv debería de ser manejada por stroage/csv.py
-** DONE Estandarizar a ingles nombres de variables y funciones
-** DONE Guardar metadatos de la corrida en cada csv
-  Tiempo de estabilización, cantidad de puntos,
-** DONE Regresar motor al punto inicial después de cada corrida
-** DONE Implementar importado de corridas antiguas leyendo csv
-** DONE Hacer que el historial use todo el espacio sobre el eje y disponible
-CLOSED: [2026-08-17 Mon 11:02]
-** DONE Hacer que el log use todo el espacio sobre el eje y disponible
-CLOSED: [2026-08-17 Mon 11:02]
-** DONE Permitir importar multiples archivos csv al mismo tiempo
-CLOSED: [2026-08-17 Mon 11:32]
-** DONE Agregar botón de expotar como imagen png
-CLOSED: [2026-09-01 Tue 10:00]
-- State "DONE"       from "TODO"       [2026-09-01 Tue 10:00]
-** DONE No bloquear botones inecesarios como guardar, peaks, etc mientras corre la barrida
-CLOSED: [2026-08-27 Thu 20:35]
-- State "DONE"       from "TODO" [2026-08-27 Thu 20:35]
-** DONE Mostrar las excepciones de conexión en el log
-CLOSED: [2026-09-01 Tue 10:59]
-- State "DONE"       from "TODO" [2026-09-01 Tue 10:59]
-** DONE Fallar suavemente si no termina el barrido por cualquier razón (botón de cancelar a un lado de la barra de progreso)
-CLOSED: [2026-09-01 Tue 10:59]
-- State "DONE"       from "TODO" [2026-09-01 Tue 10:59]
+** DONE Limitar botones dentro del historial de la corrida hasta que haya finalizado  para no guardar corridas a la mitad.
+** DONE Barra de progreso dentro de la sección del barrido
+** DONE Detección de múltiples picos en los barridos
+** DONE Ocultar la leyenda de la gráfica
+** DONE Mostrar el eje Y de la gráfica de 0 a 3 volts
+** DONE Separar temas y actualización de gráficas de interface.py
+** DONE Mantener la exportación CSV en storage/csv.py
+** DONE Estandarizar a inglés los nombres de variables y funciones
+** DONE Guardar metadatos básicos de la corrida en cada CSV
+** DONE Regresar el motor al punto inicial después de cada corrida
+** DONE Importar corridas antiguas desde CSV
+** DONE Importar múltiples archivos CSV al mismo tiempo
+** DONE Exportar gráficas como PNG
+** DONE Mostrar excepciones de conexión en el log
+** DONE Fallar suavemente al cancelar o interrumpir un barrido
+
+* Mantenimiento
+
+** TODO Limpiar el codebase
++ [ ] Eliminar código redundante.
++ [ ] Separar código interno en inglés de la interfaz en español.
++ [ ] Mantener separation of concerns y reducir responsabilidades de interface.py.
++ [X] Extraer temas y actualización de gráficas de interface.py.
+
+** CANCELLED No implementar movimiento de labels de la gráfica
+Ocultar la leyenda es suficiente; mover labels no justifica la complejidad.
+
+* Convenciones para v3
+
+- Los barridos individuales son datos crudos y no deben perderse cuando se  calcula un promedio.
+- Todo resultado derivado debe guardar sus fuentes, parámetros y versión del  protocolo utilizado.
+- La visibilidad de una curva es una decisión de presentación; la selección  para adquirir, promediar o corregir es una decisión analítica explícita.
+- Las corridas fallidas, canceladas o atípicas se conservan para auditoría,  pero no participan silenciosamente en un resultado.
+- Las calibraciones se producen mediante el mismo flujo de repetición y  promedio que las muestras, usando un protocolo sin muestra.
