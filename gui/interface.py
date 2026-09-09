@@ -140,22 +140,16 @@ class ControlInterface:
             f"hist_corregir_{run_id}",
             f"hist_eliminar_{run_id}",
             f"hist_peaks_{run_id}",
-            f"hist_exportar_{run_id}",
-            f"hist_proveniencia_{run_id}",
+            f"hist_acciones_{run_id}",
         ]
         for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
 
     def _set_failed_run_buttons_state(self, run: RunRecord) -> None:
-        """Leave a failed run removable and enable data actions only when useful."""
-        has_measurements = bool(run.measurements)
+        """Keep the compact action menu available for a failed run."""
         states = {
-            f"hist_guardar_{run.id}": has_measurements,
-            f"hist_corregir_{run.id}": has_measurements,
-            f"hist_peaks_{run.id}": has_measurements,
-            f"hist_exportar_{run.id}": has_measurements,
-            f"hist_eliminar_{run.id}": True,
+            f"hist_acciones_{run.id}": True,
         }
 
         for tag, enabled in states.items():
@@ -506,11 +500,10 @@ class ControlInterface:
         self.log(f"[PROMEDIO] {derived.label} calculado")
 
     def _add_history_table_columns(self) -> None:
-        dpg.add_table_column(label="Ver", init_width_or_weight=0.06)
-        dpg.add_table_column(label="Corrida", init_width_or_weight=0.25)
-        dpg.add_table_column(label="Estado", init_width_or_weight=0.12)
-        dpg.add_table_column(label="Pico", init_width_or_weight=0.2)
-        dpg.add_table_column(label="Acciones", init_width_or_weight=0.37)
+        dpg.add_table_column(label="Ver", init_width_or_weight=0.07)
+        dpg.add_table_column(label="Corrida", init_width_or_weight=0.39)
+        dpg.add_table_column(label="Estado y pico", init_width_or_weight=0.3)
+        dpg.add_table_column(label="Acciones", init_width_or_weight=0.24)
 
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
@@ -535,54 +528,42 @@ class ControlInterface:
                 dpg.add_text("", tag=f"hist_laser_text_{run.id}")
             with dpg.table_cell():
                 dpg.add_text("", tag=f"hist_status_text_{run.id}")
-            with dpg.table_cell():
                 dpg.add_text("", tag=f"hist_peaks_text_{run.id}")
-            with dpg.table_cell(), dpg.group(horizontal=True):
-                dpg.add_button(
-                    label="Guardar",
-                    tag=f"hist_guardar_{run.id}",
-                    callback=self.on_click_save_run,
+            with dpg.table_cell():
+                dpg.add_combo(
+                    items=[
+                        "Acciones...",
+                        "Guardar CSV",
+                        "Corregir",
+                        "Mostrar picos",
+                        "Ver origen",
+                        "Exportar PNG",
+                        "Eliminar",
+                    ],
+                    default_value="Acciones...",
+                    tag=f"hist_acciones_{run.id}",
+                    callback=self.execute_run_action,
                     user_data=run.id,
-                    width=55,
-                )
-                dpg.add_button(
-                    label="Corregir",
-                    tag=f"hist_corregir_{run.id}",
-                    callback=self.on_click_correct_run,
-                    user_data=run.id,
-                    width=58,
-                )
-                dpg.add_button(
-                    label="Picos",
-                    tag=f"hist_peaks_{run.id}",
-                    callback=self.on_click_peaks,
-                    user_data=run.id,
-                    width=48,
-                )
-                dpg.add_button(
-                    label="Origen",
-                    tag=f"hist_proveniencia_{run.id}",
-                    callback=self.show_run_provenance,
-                    user_data=run.id,
-                    width=55,
-                )
-                dpg.add_button(
-                    label="PNG",
-                    tag=f"hist_exportar_{run.id}",
-                    callback=self.on_click_export_run,
-                    user_data=run.id,
-                    width=42,
-                )
-                dpg.add_button(
-                    label="X",
-                    tag=f"hist_eliminar_{run.id}",
-                    callback=self.on_click_delete_run,
-                    user_data=run.id,
-                    width=28,
+                    width=-1,
                 )
 
         self.update_history_text(run)
-        dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
+
+    def execute_run_action(self, sender, action: str, run_id: int) -> None:
+        """Run a compact history-table action selected from its dropdown."""
+        callbacks = {
+            "Guardar CSV": self.on_click_save_run,
+            "Corregir": self.on_click_correct_run,
+            "Mostrar picos": self.on_click_peaks,
+            "Ver origen": self.show_run_provenance,
+            "Exportar PNG": self.on_click_export_run,
+            "Eliminar": self.on_click_delete_run,
+        }
+        callback = callbacks.get(action)
+        if callback is not None:
+            callback(sender, action, run_id)
+        if dpg.does_item_exist(sender):
+            dpg.set_value(sender, "Acciones...")
 
     def update_history_text(self, run: RunRecord) -> None:
         status_text = {
@@ -1209,7 +1190,7 @@ class ControlInterface:
             for run_number in range(1, number_of_runs + 1):
                 run = self.create_live_run(
                     "barrido",
-                    f"{session.label} — barrido {run_number}/{number_of_runs}",
+                    f"{session.label} - barrido {run_number}/{number_of_runs}",
                     set_active=False,
                 )
                 run.filename = os.path.join(
