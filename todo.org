@@ -1,0 +1,98 @@
+* Mantenimiento
+** CANCELLED No implementar movimiento de labels de la gráfica
+  Ocultar la leyenda es suficiente; mover labels no justifica la complejidad.
+** TODO Limpiar codebase
++ [ ] Eliminar código redundante
++ [ ] Separar código en inglés de la interfaz en español
++ [ ] Mantener separation of concerns y reducir responsabilidades de interface.py
++ [X] Extraer temas y actualización de gráficas de interface.py
+
+* Reproducibilidad
+** TODO Agregar entidades de proyecto, experimento y muestra
++ [ ] Operador y notas
++ [ ] Material y concentración
++ [ ] Temperatura y condiciones ambientales
+** TODO Crear perfiles persistentes de calibración
++ [ ] Versionar perfiles
++ [ ] Asociar calibración con sensor y motor
++ [ ] Seleccionar calibración para una corrida
++ [ ] Guardar el UID de calibración en resultados corregidos
+** TODO Guardar parámetros de análisis
++ [ ] Configuración de detección de picos
++ [ ] Suavizado y corrección de línea base
++ [ ] Resolución de interpolación
++ [ ] Rechazo de valores atípicos
+** TODO Visualizar la proveniencia de resultados derivados
+** TODO Mostrar el grafo de dependencias entre corridas
+
+* Flujo de laboratorio
+** TODO Seleccionar explícitamente las corridas que se van a promediar
+** TODO Implementar protocolos de medición por lotes
++ [ ] Cola de corridas
++ [ ] Pausa y reanudación
++ [ ] Reintentos configurables
++ [ ] Promedio automático de resultados válidos
+** TODO Agregar análisis de calidad y repetibilidad
++ [ ] Desviación estándar
++ [ ] Variación de posición y voltaje de los picos
++ [ ] Relación señal/ruido
++ [ ] Detección de corridas atípicas
++ [ ] Intervalos de confianza
+** TODO Generar reportes y paquetes de exportación
++ [ ] Metadatos del experimento
++ [ ] Datos crudos, corregidos y de calibración
++ [ ] Gráficas
++ [ ] Informe PDF
+
+* Arquitectura y calidad
+** TODO Extraer vistas y servicios de interface.py
+** TODO Añadir pruebas de integración de flujos completos
+** TODO Mejorar el simulador con ruido, deriva y fallos configurables
+** TODO Centralizar configuración de hardware, almacenamiento y análisis
+
+* Acabados
+** DONE Permitir ocultar la leyenda de la gráfica
+CLOSED: [2026-09-08 Tue 00:00]
+- State "DONE" from "TODO" [2026-09-08 Tue 00:00]
+** DONE Promediar múltiples corridas sobre el rango común
+CLOSED: [2026-09-08 Tue 00:00]
+- State "DONE" from "TODO" [2026-09-08 Tue 00:00]
+** DONE Historial persistente de corridas en SQLite
+** DONE Identificadores únicos y nombres basados en fecha
+** DONE Estados de corrida y recuperación de operaciones interrumpidas
+** DONE Cancelación cooperativa y protocolo de detención del motor
+** DONE Escritura atómica de archivos CSV
+** DONE Seguimiento del tiempo de encendido del láser
+** DONE Proveniencia inicial de corridas derivadas
+  - UID de corridas fuente y tipo de análisis para promedios y correcciones.
+** DONE Limitar botones de barrido y calibración hasta que haya un motor y sensor conectado
+** DONE Limitar botones dentro del historial de la corrida hasta que haya finalizado 
+  para no guardar corridas a la mitad
+** DONE Implementar una barra de progreso dentro de la sección del barrido
+** DONE Encontrar multiples picos en los barridos
+** DONE Mostrar el eje y de la grafia de  0 a 3 volts
+** DONE Mejorar separación de intereses en gui/interface.py
+** DONE La exportación a csv debería de ser manejada por stroage/csv.py
+** DONE Estandarizar a ingles nombres de variables y funciones
+** DONE Guardar metadatos de la corrida en cada csv
+  Tiempo de estabilización, cantidad de puntos,
+** DONE Regresar motor al punto inicial después de cada corrida
+** DONE Implementar importado de corridas antiguas leyendo csv
+** DONE Hacer que el historial use todo el espacio sobre el eje y disponible
+CLOSED: [2026-08-17 Mon 11:02]
+** DONE Hacer que el log use todo el espacio sobre el eje y disponible
+CLOSED: [2026-08-17 Mon 11:02]
+** DONE Permitir importar multiples archivos csv al mismo tiempo
+CLOSED: [2026-08-17 Mon 11:32]
+** DONE Agregar botón de expotar como imagen png
+CLOSED: [2026-09-01 Tue 10:00]
+- State "DONE"       from "TODO"       [2026-09-01 Tue 10:00]
+** DONE No bloquear botones inecesarios como guardar, peaks, etc mientras corre la barrida
+CLOSED: [2026-08-27 Thu 20:35]
+- State "DONE"       from "TODO" [2026-08-27 Thu 20:35]
+** DONE Mostrar las excepciones de conexión en el log
+CLOSED: [2026-09-01 Tue 10:59]
+- State "DONE"       from "TODO" [2026-09-01 Tue 10:59]
+** DONE Fallar suavemente si no termina el barrido por cualquier razón (botón de cancelar a un lado de la barra de progreso)
+CLOSED: [2026-09-01 Tue 10:59]
+- State "DONE"       from "TODO" [2026-09-01 Tue 10:59]
