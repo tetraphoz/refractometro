@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     label TEXT NOT NULL,
     expected_runs INTEGER NOT NULL,
     protocol_parameters TEXT NOT NULL DEFAULT '{}',
+    laboratory_metadata TEXT NOT NULL DEFAULT '{}',
     created_at REAL NOT NULL
 );
 
@@ -80,6 +81,7 @@ class RunRepository:
         self._connection.execute("PRAGMA foreign_keys = ON")
         self._connection.executescript(_SCHEMA)
         self._ensure_run_columns()
+        self._ensure_session_columns()
         self._connection.execute(
             "CREATE INDEX IF NOT EXISTS runs_session_uid_idx ON runs (session_uid)"
         )
@@ -102,6 +104,16 @@ class RunRepository:
                     f"ALTER TABLE runs ADD COLUMN {column} {definition}"
                 )
 
+    def _ensure_session_columns(self) -> None:
+        """Complete databases created before session laboratory metadata."""
+        columns = {
+            row[1] for row in self._connection.execute("PRAGMA table_info(sessions)")
+        }
+        if "laboratory_metadata" not in columns:
+            self._connection.execute(
+                "ALTER TABLE sessions ADD COLUMN laboratory_metadata TEXT NOT NULL DEFAULT '{}'"
+            )
+
     def save_session(self, session: MeasurementSession) -> None:
         """Insert or update a laboratory session without its raw runs."""
         with self._lock, self._connection:
@@ -109,14 +121,15 @@ class RunRepository:
                 """
                 INSERT INTO sessions (
                     uid, status, kind, label, expected_runs,
-                    protocol_parameters, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    protocol_parameters, laboratory_metadata, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(uid) DO UPDATE SET
                     status = excluded.status,
                     kind = excluded.kind,
                     label = excluded.label,
                     expected_runs = excluded.expected_runs,
                     protocol_parameters = excluded.protocol_parameters,
+                    laboratory_metadata = excluded.laboratory_metadata,
                     created_at = excluded.created_at
                 """,
                 (
@@ -126,6 +139,7 @@ class RunRepository:
                     session.label,
                     session.expected_runs,
                     json.dumps(session.protocol_parameters),
+                    json.dumps(session.laboratory_metadata),
                     session.created_at,
                 ),
             )
@@ -273,6 +287,7 @@ class RunRepository:
             label=row["label"],
             expected_runs=row["expected_runs"],
             protocol_parameters=json.loads(row["protocol_parameters"]),
+            laboratory_metadata=json.loads(row["laboratory_metadata"]),
             created_at=row["created_at"],
             run_uids=[run["uid"] for run in run_uids],
         )

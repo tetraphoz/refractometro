@@ -4,7 +4,13 @@ import sqlite3
 
 import pytest
 
-from app.models import MeasurementSession, RunRecord, SessionKind, SessionStatus
+from app.models import (
+    LaboratoryMetadata,
+    MeasurementSession,
+    RunRecord,
+    SessionKind,
+    SessionStatus,
+)
 from app.run_repository import RunRepository
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -117,6 +123,11 @@ def test_repository_persists_sessions_and_their_raw_runs(tmp_path):
         kind=SessionKind.SAMPLE,
         expected_runs=2,
         protocol_parameters={"number_of_points": 20},
+        laboratory_metadata=LaboratoryMetadata(
+            project="Proyecto A",
+            sample="Muestra A",
+            temperature_c=22.5,
+        ).as_parameters(),
     )
     run = make_run()
 
@@ -131,6 +142,8 @@ def test_repository_persists_sessions_and_their_raw_runs(tmp_path):
     assert loaded.status is SessionStatus.PREPARED
     assert loaded.run_uids == [run.uid]
     assert loaded.protocol_parameters == {"number_of_points": 20}
+    assert loaded.laboratory_context().project == "Proyecto A"
+    assert loaded.laboratory_context().temperature_c == 22.5
     assert loaded_run is not None
     assert loaded_run.session_uid == session.uid
     assert repository.list_runs_for_session(session.uid) == [loaded_run]

@@ -73,6 +73,63 @@ class SweepProtocol:
             ) from exc
 
 
+@dataclass(frozen=True)
+class LaboratoryMetadata:
+    """Laboratory context captured with a reproducible measurement session."""
+
+    project: str = ""
+    experiment: str = ""
+    sample: str = ""
+    material: str = ""
+    concentration: str = ""
+    operator: str = ""
+    notes: str = ""
+    temperature_c: float | None = None
+    environmental_conditions: str = ""
+    sample_holder: str = ""
+    equipment_configuration: str = ""
+    software_version: str = "v3"
+
+    def as_parameters(self) -> dict[str, object]:
+        return {
+            "project": self.project,
+            "experiment": self.experiment,
+            "sample": self.sample,
+            "material": self.material,
+            "concentration": self.concentration,
+            "operator": self.operator,
+            "notes": self.notes,
+            "temperature_c": self.temperature_c,
+            "environmental_conditions": self.environmental_conditions,
+            "sample_holder": self.sample_holder,
+            "equipment_configuration": self.equipment_configuration,
+            "software_version": self.software_version,
+        }
+
+    @classmethod
+    def from_parameters(cls, parameters: dict[str, object]) -> LaboratoryMetadata:
+        return cls(
+            project=str(parameters.get("project", "")),
+            experiment=str(parameters.get("experiment", "")),
+            sample=str(parameters.get("sample", "")),
+            material=str(parameters.get("material", "")),
+            concentration=str(parameters.get("concentration", "")),
+            operator=str(parameters.get("operator", "")),
+            notes=str(parameters.get("notes", "")),
+            temperature_c=(
+                float(parameters["temperature_c"])
+                if parameters.get("temperature_c") is not None
+                else None
+            ),
+            environmental_conditions=str(
+                parameters.get("environmental_conditions", "")
+            ),
+            sample_holder=str(parameters.get("sample_holder", "")),
+            equipment_configuration=str(parameters.get("equipment_configuration", "")),
+            software_version=str(parameters.get("software_version", "v3")),
+        )
+
+
 class SessionStatus(StrEnum):
     """Lifecycle state of a laboratory measurement session."""
 
@@ -118,6 +175,7 @@ class MeasurementSession:
     status: SessionStatus = SessionStatus.PREPARED
     run_uids: list[str] = field(default_factory=list)
     protocol_parameters: dict[str, object] = field(default_factory=dict)
+    laboratory_metadata: dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.expected_runs < 1:
@@ -136,6 +194,16 @@ class MeasurementSession:
         if self.status is not SessionStatus.PREPARED:
             raise ValueError("El protocolo solo puede cambiarse antes de adquirir")
         self.protocol_parameters = dict(parameters)
+
+    def set_laboratory_metadata(self, metadata: LaboratoryMetadata) -> None:
+        """Capture laboratory context before acquisition starts."""
+        if self.status is not SessionStatus.PREPARED:
+            raise ValueError("Los metadatos solo pueden cambiarse antes de adquirir")
+        self.laboratory_metadata = metadata.as_parameters()
+
+    def laboratory_context(self) -> LaboratoryMetadata:
+        """Return the typed laboratory context stored with this session."""
+        return LaboratoryMetadata.from_parameters(self.laboratory_metadata)
 
     def set_sweep_protocol(self, protocol: SweepProtocol) -> None:
         """Set the typed sweep settings used for all raw session runs."""

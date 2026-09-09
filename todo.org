@@ -114,13 +114,13 @@ selección de datos para un análisis.
 
 * v3 — Reproducibilidad y datos de laboratorio
 
-** TODO Agregar entidades de proyecto, experimento y muestra
-+ [ ] Proyecto y experimento.
-+ [ ] Muestra, material y concentración.
-+ [ ] Operador y notas.
-+ [ ] Temperatura y condiciones ambientales.
-+ [ ] Identificación del portamuestras y configuración del equipo.
-+ [ ] Fecha, hora y versión de software/protocolo.
+** DONE Agregar entidades de proyecto, experimento y muestra
++ [X] Proyecto y experimento.
++ [X] Muestra, material y concentración.
++ [X] Operador y notas.
++ [X] Temperatura y condiciones ambientales.
++ [X] Identificación del portamuestras y configuración del equipo.
++ [X] Fecha, hora y versión de software/protocolo.
 
 ** TODO Centralizar configuración
 + [ ] Centralizar configuración de hardware.

@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import MeasurementSession, SessionKind, SessionStatus, SweepProtocol
+from app.models import (
+    LaboratoryMetadata,
+    MeasurementSession,
+    SessionKind,
+    SessionStatus,
+    SweepProtocol,
+)
 
 
 def test_measurement_session_tracks_raw_runs_in_acquisition_order():
@@ -41,6 +47,24 @@ def test_sweep_protocol_rejects_invalid_acquisition_settings():
         SweepProtocol(0.0, 12.0, 1, 0.2)
     with pytest.raises(ValueError, match="no puede ser negativo"):
         SweepProtocol(0.0, 12.0, 50, -0.1)
+
+
+def test_measurement_session_captures_typed_laboratory_metadata():
+    session = MeasurementSession("Muestra A", SessionKind.SAMPLE, expected_runs=1)
+    metadata = LaboratoryMetadata(
+        project="Proyecto A",
+        experiment="Ensayo 1",
+        sample="Muestra A",
+        material="Polímero",
+        concentration="2 %",
+        operator="Operadora",
+        temperature_c=22.5,
+        sample_holder="Portamuestras 1",
+    )
+
+    session.set_laboratory_metadata(metadata)
+
+    assert session.laboratory_context() == metadata
 
 
 def test_measurement_session_enforces_lifecycle_and_protocol_mutability():
