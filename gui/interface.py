@@ -1300,6 +1300,15 @@ class ControlInterface:
 
         self.delete_run(run)
 
+    def _raw_run_is_visible(self, run: RunRecord) -> bool:
+        visibility_tag = f"hist_visible_{run.id}"
+        if not dpg.does_item_exist(visibility_tag):
+            return True
+        try:
+            return bool(dpg.get_value(visibility_tag))
+        except (RuntimeError, KeyError):
+            return True
+
     def on_click_peaks(self, sender, app_data, user_data) -> None:
         """
         Toggle plot markers for peaks for the selected run. The per-run
@@ -1333,6 +1342,13 @@ class ControlInterface:
                 except RuntimeError as exc:
                     self.log(f"[PEAKS ERROR] {exc}")
             self.log(f"[PEAKS] Ocultados picos de {run.label}")
+            return
+
+        # Raw peak markers follow the raw-curve visibility. This prevents a
+        # completed run callback or the peak action from resurrecting markers
+        # after the whole batch was hidden.
+        if not self._raw_run_is_visible(run):
+            self.log("[PEAKS] El barrido crudo está oculto")
             return
 
         # show markers: ensure measurements exist
@@ -1911,7 +1927,8 @@ class ControlInterface:
                     [peak.voltage_v for peak in run.peaks],
                 ],
             )
-            dpg.configure_item(peaks_tag, show=bool(run.peaks))
+            raw_visible = self._raw_run_is_visible(run)
+            dpg.configure_item(peaks_tag, show=bool(run.peaks) and raw_visible)
             self.update_history_text(run)
             self._set_run_buttons_enabled(run.id, True)
 
