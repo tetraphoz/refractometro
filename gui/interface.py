@@ -400,19 +400,33 @@ class ControlInterface:
             parent="historial_lista",
             default_open=True,
         ):
-            dpg.add_input_text(
-                label="Nombre de muestra",
-                default_value=session.label,
-                tag=f"hist_session_name_{session.uid}",
-                callback=self.rename_session,
-                user_data=session.uid,
-                on_enter=True,
-                width=-1,
-            )
-            dpg.add_text(
-                f"Estado del lote: {session.status.value}",
-                tag=self._session_history_status_tag(session.uid),
-            )
+            with dpg.group(horizontal=True):
+                dpg.add_text("Nombre:")
+                dpg.add_input_text(
+                    default_value=session.label,
+                    tag=f"hist_session_name_{session.uid}",
+                    callback=self.rename_session,
+                    user_data=session.uid,
+                    on_enter=True,
+                    width=180,
+                )
+                dpg.add_button(
+                    label="Guardar",
+                    callback=self.save_session_name,
+                    user_data=session.uid,
+                    width=70,
+                )
+            with dpg.group(horizontal=True):
+                dpg.add_checkbox(
+                    label="Mostrar barridos crudos",
+                    default_value=True,
+                    callback=self.toggle_session_visibility,
+                    user_data=session.uid,
+                )
+                dpg.add_text(
+                    f"Estado: {session.status.value}",
+                    tag=self._session_history_status_tag(session.uid),
+                )
             dpg.add_button(
                 label=(
                     "Crear calibración promedio"
@@ -436,7 +450,14 @@ class ControlInterface:
     def _update_session_history_status(self, session: MeasurementSession) -> None:
         status_tag = self._session_history_status_tag(session.uid)
         if dpg.does_item_exist(status_tag):
-            dpg.set_value(status_tag, f"Estado del lote: {session.status.value}")
+            dpg.set_value(status_tag, f"Estado: {session.status.value}")
+
+    def save_session_name(self, _sender, _value, session_uid: str) -> None:
+        self.rename_session(
+            _sender,
+            dpg.get_value(f"hist_session_name_{session_uid}"),
+            session_uid,
+        )
 
     def rename_session(self, _sender, value: str, session_uid: str) -> None:
         """Persist the editable sample name shown in a batch dropdown."""
@@ -515,6 +536,22 @@ class ControlInterface:
         dpg.add_table_column(label="Corrida", init_width_or_weight=0.5)
         dpg.add_table_column(label="Estado y pico", init_width_or_weight=0.43)
 
+    def toggle_session_visibility(
+        self,
+        _sender,
+        visible: bool,
+        session_uid: str,
+    ) -> None:
+        """Show or hide all raw curves of a batch without changing analysis."""
+        for run in self._repository.list_runs_for_session(session_uid):
+            history_run = self._run_history.get_by_uid(run.uid)
+            if history_run is None:
+                continue
+            self.toggle_run_visibility(None, visible, history_run.id)
+            checkbox_tag = f"hist_visible_{history_run.id}"
+            if dpg.does_item_exist(checkbox_tag):
+                dpg.set_value(checkbox_tag, visible)
+
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
             return "historial_general"
@@ -529,6 +566,7 @@ class ControlInterface:
             with dpg.table_cell():
                 dpg.add_checkbox(
                     label="",
+                    tag=f"hist_visible_{run.id}",
                     default_value=True,
                     callback=self.toggle_run_visibility,
                     user_data=run.id,
