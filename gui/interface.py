@@ -130,8 +130,20 @@ class ControlInterface:
         )
 
     def toggle_plot_legend(self, sender, value, user_data) -> None:
-        if dpg.does_item_exist("plot_legend"):
-            dpg.configure_item("plot_legend", show=value)
+        """Show or hide the scalable text legend beside the operation log."""
+        if dpg.does_item_exist("leyenda_lateral"):
+            dpg.configure_item("leyenda_lateral", show=value)
+
+    def _add_side_legend_entry(self, run: RunRecord) -> None:
+        """Add one curve label outside the plot, where large batches fit."""
+        if not dpg.does_item_exist("leyenda_lista"):
+            return
+        dpg.add_text(
+            run.label,
+            tag=f"leyenda_{run.id}",
+            parent="leyenda_lista",
+            wrap=250,
+        )
 
     def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
         # Configure the buttons of a history row (do not touch peak labels here).
@@ -590,6 +602,7 @@ class ControlInterface:
 
         self.update_history_text(run)
         dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
+        self._add_side_legend_entry(run)
 
     def _add_run_context_actions(self, run: RunRecord, *, tagged: bool) -> None:
         """Add the same context actions to every interactive history cell."""
@@ -695,6 +708,10 @@ class ControlInterface:
 
         if dpg.does_item_exist(run.row_tag):
             dpg.delete_item(run.row_tag)
+
+        legend_tag = f"leyenda_{run.id}"
+        if dpg.does_item_exist(legend_tag):
+            dpg.delete_item(legend_tag)
 
         self._run_history.remove(run)
 
@@ -1263,10 +1280,6 @@ class ControlInterface:
         batch_runs: dict[int, RunRecord] = {}
         try:
             self._set_operation_buttons_enabled(False)
-            # Una leyenda dentro del gráfico no escala a lotes de 20+ curvas.
-            # El historial tabular conserva las etiquetas detalladas.
-            dpg.set_value("mostrar_leyenda", False)
-            self.toggle_plot_legend(None, False, None)
             protocol = SweepProtocol(
                 start_position_mm=dpg.get_value("posicion_inicio"),
                 end_position_mm=dpg.get_value("posicion_final"),
@@ -2118,9 +2131,9 @@ class ControlInterface:
                             default_open=True,
                         ):
                             dpg.add_checkbox(
-                                label="Mostrar leyenda de la gráfica",
+                                label="Mostrar leyenda lateral",
                                 tag="mostrar_leyenda",
-                                default_value=False,
+                                default_value=True,
                                 callback=self.toggle_plot_legend,
                             )
 
@@ -2161,8 +2174,6 @@ class ControlInterface:
                             height=800,
                             width=-1,
                         ):
-                            dpg.add_plot_legend(tag="plot_legend", show=False)
-
                             dpg.add_plot_axis(
                                 dpg.mvXAxis,
                                 label="Posición (mm)",
@@ -2181,17 +2192,45 @@ class ControlInterface:
                                 tag="voltage_axis",
                             )
 
-                        with dpg.child_window(
+                        with dpg.table(
+                            header_row=False,
+                            borders_innerV=True,
+                            policy=dpg.mvTable_SizingStretchProp,
                             height=200,
-                            border=True,
                         ):
-                            dpg.add_input_text(
-                                tag="registro",
-                                multiline=True,
-                                readonly=True,
-                                width=-1,
-                                height=-1,
-                            )
+                            dpg.add_table_column(init_width_or_weight=0.72)
+                            dpg.add_table_column(init_width_or_weight=0.28)
+                            with dpg.table_row():
+                                with (
+                                    dpg.table_cell(),
+                                    dpg.child_window(
+                                        height=200,
+                                        border=True,
+                                    ),
+                                ):
+                                    dpg.add_input_text(
+                                        tag="registro",
+                                        multiline=True,
+                                        readonly=True,
+                                        width=-1,
+                                        height=-1,
+                                    )
+                                with (
+                                    dpg.table_cell(),
+                                    dpg.child_window(
+                                        tag="leyenda_lateral",
+                                        height=200,
+                                        border=True,
+                                    ),
+                                ):
+                                    dpg.add_text("Leyenda de curvas")
+                                    dpg.add_separator()
+                                    with dpg.child_window(
+                                        tag="leyenda_lista",
+                                        height=160,
+                                        border=False,
+                                    ):
+                                        pass
 
         set_connection_button_visual(
             "conectar_esp32_btn",
