@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS runs (
     expected_points INTEGER,
     stabilization_time_s TEXT,
     laser_on_time_s REAL,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    failure_reason TEXT,
     source_uids TEXT NOT NULL DEFAULT '[]',
     analysis_kind TEXT,
     analysis_parameters TEXT NOT NULL DEFAULT '{}',
@@ -93,6 +95,8 @@ class RunRepository:
             row[1] for row in self._connection.execute("PRAGMA table_info(runs)")
         }
         missing_columns = {
+            "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+            "failure_reason": "TEXT",
             "source_uids": "TEXT NOT NULL DEFAULT '[]'",
             "analysis_kind": "TEXT",
             "analysis_parameters": "TEXT NOT NULL DEFAULT '{}'",
@@ -201,9 +205,9 @@ class RunRepository:
                 INSERT INTO runs (
                     id, uid, status, kind, label, curve_tag, filename,
                     expected_points, stabilization_time_s, laser_on_time_s,
-                    source_uids, analysis_kind, analysis_parameters, session_uid,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    attempt_count, failure_reason, source_uids,
+                    analysis_kind, analysis_parameters, session_uid, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     uid = excluded.uid,
                     status = excluded.status,
@@ -214,6 +218,8 @@ class RunRepository:
                     expected_points = excluded.expected_points,
                     stabilization_time_s = excluded.stabilization_time_s,
                     laser_on_time_s = excluded.laser_on_time_s,
+                    attempt_count = excluded.attempt_count,
+                    failure_reason = excluded.failure_reason,
                     source_uids = excluded.source_uids,
                     analysis_kind = excluded.analysis_kind,
                     analysis_parameters = excluded.analysis_parameters,
@@ -231,6 +237,8 @@ class RunRepository:
                     run.expected_points,
                     run.stabilization_time_s,
                     run.laser_on_time_s,
+                    run.attempt_count,
+                    run.failure_reason,
                     json.dumps(run.source_uids),
                     run.analysis_kind,
                     json.dumps(run.analysis_parameters),
@@ -331,6 +339,8 @@ class RunRepository:
             expected_points=row["expected_points"],
             stabilization_time_s=row["stabilization_time_s"],
             laser_on_time_s=row["laser_on_time_s"],
+            attempt_count=row["attempt_count"] or 0,
+            failure_reason=row["failure_reason"],
             source_uids=json.loads(row["source_uids"]),
             analysis_kind=row["analysis_kind"],
             analysis_parameters=json.loads(row["analysis_parameters"]),

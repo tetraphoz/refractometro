@@ -8,7 +8,12 @@ from collections.abc import Callable
 from app.errors import CALLBACK_ERRORS, OPERATION_ERRORS, OperationCancelled
 from app.operation_state import OperationStatus
 from experiments.calibration import CalibrationCurve
-from experiments.voltage_sweep import BatchProgress, MeasurementPoint, VoltageSweep
+from experiments.voltage_sweep import (
+    BatchProgress,
+    BatchRunFailure,
+    MeasurementPoint,
+    VoltageSweep,
+)
 from hardware.protocols import Motor, Sensor
 from storage.csv import save_measurements_csv
 
@@ -363,8 +368,10 @@ class ApplicationController:
         number_of_runs: int,
         filename_factory: Callable[[int], str],
         metadata: dict[str, str] | None = None,
+        max_retries: int = 0,
         on_progress: Callable[[BatchProgress], None] | None = None,
         on_run_finished: Callable[[int, list[MeasurementPoint]], None] | None = None,
+        on_run_failed: Callable[[BatchRunFailure], None] | None = None,
         on_finished: Callable[[list[list[MeasurementPoint]]], None] | None = None,
         on_error: (
             Callable[[Exception, list[list[MeasurementPoint]]], None] | None
@@ -383,6 +390,7 @@ class ApplicationController:
                 "number_of_points": str(number_of_points),
                 "stabilization_time_s": str(stabilization_time_s),
                 "number_of_runs": str(number_of_runs),
+                "max_retries": str(max_retries),
                 "laser_on_time_s": f"{laser_on_time_s:.6f}",
             }
         )
@@ -417,6 +425,8 @@ class ApplicationController:
                     number_of_runs=number_of_runs,
                     progress_callback=on_progress,
                     run_finished_callback=save_run,
+                    run_failed_callback=on_run_failed,
+                    max_retries=max_retries,
                     cancel_event=cancel_event,
                     resume_event=self._resume_event,
                 )

@@ -41,21 +41,27 @@ class SweepProtocol:
     end_position_mm: float
     number_of_points: int
     stabilization_time_s: float
+    max_retries: int = 0
 
     def __post_init__(self) -> None:
         if self.number_of_points < 2:
             raise ValueError("El protocolo necesita al menos dos puntos")
         if self.stabilization_time_s < 0:
             raise ValueError("El tiempo de estabilización no puede ser negativo")
+        if self.max_retries < 0:
+            raise ValueError("La cantidad de reintentos no puede ser negativa")
 
     def as_parameters(self) -> dict[str, float | int]:
         """Serialize the protocol as JSON-compatible session parameters."""
-        return {
+        parameters: dict[str, float | int] = {
             "start_position_mm": self.start_position_mm,
             "end_position_mm": self.end_position_mm,
             "number_of_points": self.number_of_points,
             "stabilization_time_s": self.stabilization_time_s,
         }
+        if self.max_retries:
+            parameters["max_retries"] = self.max_retries
+        return parameters
 
     @classmethod
     def from_parameters(cls, parameters: dict[str, object]) -> SweepProtocol:
@@ -66,6 +72,7 @@ class SweepProtocol:
                 end_position_mm=float(parameters["end_position_mm"]),
                 number_of_points=int(parameters["number_of_points"]),
                 stabilization_time_s=float(parameters["stabilization_time_s"]),
+                max_retries=int(parameters.get("max_retries", 0)),
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(
@@ -244,6 +251,8 @@ class RunRecord:
     expected_points: int | None = None
     stabilization_time_s: str | None = ""
     laser_on_time_s: float | None = None
+    attempt_count: int = 0
+    failure_reason: str | None = None
     created_at: float = field(default_factory=time.time)
     uid: str = field(default_factory=_new_uid)
     status: RunStatus = RunStatus.PENDING

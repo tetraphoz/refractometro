@@ -29,7 +29,7 @@ from app.run_processing import (
 from app.run_repository import RunRepository
 from app.session_processing import average_session_run, calibration_session_run
 from experiments.calibration import CalibrationCurve
-from experiments.voltage_sweep import BatchProgress, MeasurementPoint
+from experiments.voltage_sweep import BatchProgress, BatchRunFailure, MeasurementPoint
 from gui.plot_view import update_curve
 from gui.themes import (
     DANGER_THEME,
@@ -970,6 +970,8 @@ class ControlInterface:
             RunStatus.CANCELLED: "Cancelada",
             RunStatus.INTERRUPTED: "Interrumpida",
         }[run.status]
+        if run.failure_reason:
+            status_text = f"{status_text}: {run.failure_reason}"
         peak_text = format_peak_summary(run.peaks, limit=1) if run.peaks else "—"
 
         if dpg.does_item_exist(run.text_tag):
@@ -1113,6 +1115,8 @@ class ControlInterface:
                 "expected_points": run.expected_points,
                 "stabilization_time_s": run.stabilization_time_s,
                 "laser_on_time_s": run.laser_on_time_s,
+                "attempt_count": run.attempt_count,
+                "failure_reason": run.failure_reason,
                 "filename": run.filename,
             },
             indent=2,
@@ -1610,6 +1614,7 @@ class ControlInterface:
                 end_position_mm=dpg.get_value("posicion_final"),
                 number_of_points=number_of_points,
                 stabilization_time_s=dpg.get_value("tiempo_estabilizacion"),
+                max_retries=dpg.get_value("reintentos_barrido"),
             )
             purpose = "Blanco" if session_kind is SessionKind.CALIBRATION else "Muestra"
             sample_name = dpg.get_value("nombre_muestra").strip() or purpose
@@ -1660,6 +1665,7 @@ class ControlInterface:
                 number_of_points=protocol.number_of_points,
                 stabilization_time_s=protocol.stabilization_time_s,
                 number_of_runs=number_of_runs,
+                max_retries=protocol.max_retries,
                 filename_factory=lambda run_number: batch_runs[run_number].filename
                 or "",
                 metadata={
@@ -1668,6 +1674,7 @@ class ControlInterface:
                 },
                 on_progress=self.update_batch_sweep,
                 on_run_finished=self.batch_run_finished,
+                on_run_failed=self.batch_run_failed,
                 on_finished=self.batch_finished,
                 on_error=self.batch_failed,
                 on_cancelled=self.batch_cancelled,
@@ -1692,6 +1699,8 @@ class ControlInterface:
 
         with dpg.mutex():
             run.measurements = list(progress.measurements)
+            run.attempt_count = max(run.attempt_count, progress.attempt)
+            run.failure_reason = None
             run.status = RunStatus.RUNNING
             self._run_history.save(run)
             update_curve(run.curve_tag, run.measurements)
@@ -1716,6 +1725,7 @@ class ControlInterface:
             run.measurements = list(measurements)
             run.peaks = self.controller.sweep.find_peaks(run.measurements)
             run.status = RunStatus.COMPLETED
+            run.failure_reason = None
             self._run_history.save(run)
             update_curve(run.curve_tag, run.measurements)
 
@@ -1731,6 +1741,22 @@ class ControlInterface:
             self.update_history_text(run)
             self._set_run_buttons_enabled(run.id, True)
 
+    def batch_run_failed(self, failure: BatchRunFailure) -> None:
+        run = self._batch_runs.get(failure.run_number)
+        if run is None:
+            return
+        with dpg.mutex():
+            run.status = RunStatus.FAILED
+            run.attempt_count = failure.attempts
+            run.failure_reason = str(failure.error)
+            self._run_history.save(run)
+            self.update_history_text(run)
+            self._set_failed_run_buttons_state(run)
+            self.log(
+                f"[LOTE ERROR] {run.label}: {failure.error} "
+                f"(intentos: {failure.attempts})"
+            )
+
     def _finish_batch(self, status: SessionStatus, message: str) -> None:
         session = self._active_batch_session
         with dpg.mutex():
@@ -1740,6 +1766,11 @@ class ControlInterface:
                         RunStatus.CANCELLED
                         if status is SessionStatus.CANCELLED
                         else RunStatus.FAILED
+                    )
+                    run.failure_reason = (
+                        "Cancelada por el usuario"
+                        if status is SessionStatus.CANCELLED
+                        else "No ejecutada después de un fallo del lote"
                     )
                     self._run_history.save(run)
                     self.update_history_text(run)
@@ -1926,6 +1957,7 @@ class ControlInterface:
             if run is not None:
                 run.measurements = list(measurements)
                 run.status = RunStatus.CANCELLED
+                run.failure_reason = "Cancelada por el usuario"
                 self._run_history.save(run)
                 self.update_history_text(run)
                 self._set_failed_run_buttons_state(run)
@@ -1943,6 +1975,7 @@ class ControlInterface:
         with dpg.mutex():
             if run is not None:
                 run.status = RunStatus.FAILED
+                run.failure_reason = str(exc)
                 self._run_history.save(run)
                 self.update_history_text(run)
                 self._set_failed_run_buttons_state(run)
@@ -2396,6 +2429,16 @@ class ControlInterface:
                                         tag="tiempo_estabilizacion",
                                         default_value=0.2,
                                         min_value=0.0,
+                                        min_clamped=True,
+                                        width=-1,
+                                    )
+
+                                with dpg.table_row():
+                                    dpg.add_text("Reintentos por barrido")
+                                    dpg.add_input_int(
+                                        tag="reintentos_barrido",
+                                        default_value=0,
+                                        min_value=0,
                                         min_clamped=True,
                                         width=-1,
                                     )

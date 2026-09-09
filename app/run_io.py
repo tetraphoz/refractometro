@@ -16,6 +16,8 @@ def export_run_csv(run: RunRecord, filename: str) -> None:
         "id": str(run.id),
         "stabilization_time_s": str(run.stabilization_time_s or ""),
         "laser_on_time_s": str(run.laser_on_time_s or ""),
+        "attempt_count": str(run.attempt_count),
+        "failure_reason": run.failure_reason or "",
         "analysis_kind": run.analysis_kind or "",
         "source_uids": json.dumps(run.source_uids),
         "analysis_parameters": json.dumps(run.analysis_parameters),

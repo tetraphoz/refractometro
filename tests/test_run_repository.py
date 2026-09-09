@@ -36,6 +36,22 @@ def make_run(run_id: int = 1) -> RunRecord:
     )
 
 
+def test_repository_round_trips_failure_metadata(tmp_path):
+    repository = RunRepository(tmp_path / "runs.sqlite3")
+    run = make_run()
+    run.attempt_count = 3
+    run.failure_reason = "sensor failed"
+
+    repository.save(run)
+
+    loaded = repository.get(run.id)
+
+    assert loaded is not None
+    assert loaded.attempt_count == 3
+    assert loaded.failure_reason == "sensor failed"
+    repository.close()
+
+
 def test_repository_round_trips_run_and_measurements(tmp_path):
     repository = RunRepository(tmp_path / "runs.sqlite3")
     run = make_run()

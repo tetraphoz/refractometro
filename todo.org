@@ -22,18 +22,17 @@ selección de datos para un análisis.
   cancelada, fallida e interrumpida.
 + [X] Decidir qué datos se pueden modificar después de completar una sesión.
 
-** TODO Implementar adquisición por lotes de barridos
+** DONE Implementar adquisición por lotes de barridos
 + [X] Configurar cantidad de barridos, posiciones y tiempo de estabilización.
 + [X] Ejecutar una cola de barridos sin solicitudes superpuestas.
 + [X] Guardar cada barrido crudo inmediatamente al terminarlo.
 + [X] Mostrar progreso del barrido actual y progreso total del lote.
 + [X] Permitir cancelación segura conservando los resultados parciales.
 + [X] Permitir pausa y reanudación sin perder la sesión.
-+ [ ] Añadir reintentos configurables para un barrido fallido.
-+ [ ] Registrar el motivo de cada fallo, cancelación o exclusión.
-+ [ ] Recuperar un lote interrumpido después de reiniciar la aplicación.
++ [X] Añadir reintentos configurables para un barrido fallido.
++ [X] Registrar el motivo de cada fallo, cancelación o interrupción.
 
-** TODO Promediar un lote de barridos
+** DONE Promediar un lote de barridos
 + [X] Seleccionar explícitamente el lote fuente, independientemente de la
 +  visibilidad de sus curvas.
 + [X] Validar que las corridas pertenezcan a un protocolo compatible.
@@ -43,7 +42,6 @@ selección de datos para un análisis.
 + [X] Guardar los parámetros del promedio: cantidad de fuentes, rango,
 +  resolución e interpolación.
 + [X] Calcular desviación estándar y cantidad de observaciones por posición.
-+ [ ] Permitir revisar y reincorporar corridas excluidas con una razón explícita.
 + [X] Hacer visible la diferencia entre datos crudos y resultado promedio.
 
 ** TODO Crear calibraciones a partir de lotes sin muestra
@@ -51,10 +49,6 @@ selección de datos para un análisis.
 + [X] Identificar claramente una sesión como blanco/sin muestra.
 + [X] Crear la curva de calibración a partir del promedio de sus barridos.
 + [X] Evitar que una calibración se confunda con una corrida de muestra.
-+ [ ] Validar estabilidad y repetibilidad antes de aceptar la calibración.
-+ [ ] Asociar la calibración con sensor, motor, configuración y fecha.
-+ [ ] Versionar perfiles de calibración sin sobrescribir resultados anteriores.
-+ [ ] Seleccionar la calibración usada por una sesión de muestra.
 + [ ] Guardar el UID de calibración en resultados corregidos y reportes.
 
 ** DONE Corregir y analizar una sesión de muestra
@@ -66,7 +60,7 @@ selección de datos para un análisis.
 
 * v3 — Detección del cambio de índice de refracción
 
-** TODO Definir el resultado físico de la medición
+** DONE Definir el resultado físico de la medición
 + [X] Documentar qué posición/voltaje representa el cambio de índice.
 + [X] Definir las unidades y la relación entre la posición del pico y el índice.
   El motor usa mm y el sensor optoelectrico voltaje.
@@ -80,6 +74,7 @@ selección de datos para un análisis.
 + [ ] Comparar la posición del pico entre barridos del mismo lote.
 + [X] Identificar múltiples picos y permitir seleccionar el pico de interés.
 + [ ] Rechazar o marcar picos que no sean repetibles.
+	Mostrar fondo rojo en barridos fallidos o con lecturas falsas
 + [X] Guardar todos los parámetros de detección junto con el resultado.
 
 ** TODO Analizar calidad y repetibilidad

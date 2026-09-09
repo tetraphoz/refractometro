@@ -28,6 +28,7 @@ class RunHistory:
                 self._add_in_memory(run)
                 if run.status in {RunStatus.PENDING, RunStatus.RUNNING}:
                     run.status = RunStatus.INTERRUPTED
+                    run.failure_reason = "Adquisición interrumpida al reiniciar"
                     repository.save(run)
 
     @property

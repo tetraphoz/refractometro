@@ -42,11 +42,20 @@ def test_measurement_session_persists_typed_sweep_protocol():
     assert session.sweep_protocol() == protocol
 
 
+def test_sweep_protocol_persists_retry_policy():
+    protocol = SweepProtocol(0.0, 12.0, 50, 0.2, max_retries=2)
+
+    assert protocol.as_parameters()["max_retries"] == 2
+    assert SweepProtocol.from_parameters(protocol.as_parameters()).max_retries == 2
+
+
 def test_sweep_protocol_rejects_invalid_acquisition_settings():
     with pytest.raises(ValueError, match="al menos dos puntos"):
         SweepProtocol(0.0, 12.0, 1, 0.2)
     with pytest.raises(ValueError, match="no puede ser negativo"):
         SweepProtocol(0.0, 12.0, 50, -0.1)
+    with pytest.raises(ValueError, match="reintentos"):
+        SweepProtocol(0.0, 12.0, 50, 0.1, max_retries=-1)
 
 
 def test_measurement_session_captures_typed_laboratory_metadata():

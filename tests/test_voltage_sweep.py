@@ -63,6 +63,79 @@ def test_batch_preserves_each_sweep_and_reports_progress():
     assert [run_number for run_number, _ in completed] == [1, 2]
 
 
+def test_batch_retries_a_failed_run_before_reporting_success():
+    class Motor:
+        def move_absolute(self, _position_mm):
+            pass
+
+    class Sensor:
+        def __init__(self):
+            self.read_count = 0
+
+        def read_voltage(self):
+            self.read_count += 1
+            if self.read_count == 1:
+                raise RuntimeError("transient sensor failure")
+            return 1.0
+
+    failures = []
+    results = VoltageSweep(Motor(), Sensor()).run_batch(
+        0.0,
+        1.0,
+        2,
+        0.0,
+        1,
+        max_retries=1,
+        run_failed_callback=failures.append,
+    )
+
+    assert len(results) == 1
+    assert failures == []
+
+
+def test_batch_reports_exhausted_run_and_continues():
+    class Motor:
+        def move_absolute(self, _position_mm):
+            pass
+
+    class Sensor:
+        def __init__(self):
+            self.read_count = 0
+
+        def read_voltage(self):
+            self.read_count += 1
+            if self.read_count <= 2:
+                raise RuntimeError("persistent sensor failure")
+            return 1.0
+
+    failures = []
+    completed = []
+    results = VoltageSweep(Motor(), Sensor()).run_batch(
+        0.0,
+        1.0,
+        2,
+        0.0,
+        2,
+        max_retries=1,
+        run_failed_callback=failures.append,
+        run_finished_callback=lambda run_number, _measurements: completed.append(
+            run_number
+        ),
+    )
+
+    assert len(results) == 1
+    assert completed == [2]
+    assert len(failures) == 1
+    assert failures[0].run_number == 1
+    assert failures[0].attempts == 2
+    assert str(failures[0].error) == "persistent sensor failure"
+
+
+def test_batch_rejects_negative_retries():
+    with pytest.raises(ValueError, match="reintentos"):
+        VoltageSweep(object(), object()).run_batch(0.0, 1.0, 2, 0.0, 1, max_retries=-1)
+
+
 def test_batch_rejects_zero_runs():
     with pytest.raises(ValueError, match="al menos un barrido"):
         VoltageSweep(object(), object()).run_batch(0.0, 1.0, 2, 0.0, 0)
