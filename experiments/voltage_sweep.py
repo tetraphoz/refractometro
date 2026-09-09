@@ -18,6 +18,15 @@ class MeasurementPoint:
     voltage_v: float
 
 
+@dataclass(frozen=True)
+class BatchProgress:
+    """Progress of one sweep within a repeated acquisition."""
+
+    run_number: int
+    total_runs: int
+    measurements: tuple[MeasurementPoint, ...]
+
+
 class VoltageSweep:
     """
     Ejecuta un barrido de posición y voltaje.
@@ -83,6 +92,55 @@ class VoltageSweep:
 
             if progress_callback:
                 progress_callback(results.copy())
+
+        return results
+
+    def run_batch(
+        self,
+        start_position_mm: float,
+        end_position_mm: float,
+        number_of_points: int,
+        stabilization_time_s: float,
+        number_of_runs: int,
+        progress_callback: Callable[[BatchProgress], None] | None = None,
+        run_finished_callback: (
+            Callable[[int, list[MeasurementPoint]], None] | None
+        ) = None,
+        cancel_event: threading.Event | None = None,
+    ) -> list[list[MeasurementPoint]]:
+        """Acquire repeated sweeps while preserving each raw result."""
+        if number_of_runs < 1:
+            raise ValueError("Se necesita al menos un barrido")
+
+        results: list[list[MeasurementPoint]] = []
+
+        for run_number in range(1, number_of_runs + 1):
+
+            def on_progress(
+                measurements: list[MeasurementPoint],
+                run_number: int = run_number,
+            ) -> None:
+                if progress_callback is not None:
+                    progress_callback(
+                        BatchProgress(
+                            run_number=run_number,
+                            total_runs=number_of_runs,
+                            measurements=tuple(measurements),
+                        )
+                    )
+
+            measurements = self.run(
+                start_position_mm=start_position_mm,
+                end_position_mm=end_position_mm,
+                number_of_points=number_of_points,
+                stabilization_time_s=stabilization_time_s,
+                progress_callback=on_progress,
+                cancel_event=cancel_event,
+            )
+            results.append(measurements)
+
+            if run_finished_callback is not None:
+                run_finished_callback(run_number, measurements)
 
         return results
 

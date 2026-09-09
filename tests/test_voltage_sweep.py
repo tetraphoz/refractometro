@@ -28,6 +28,46 @@ def test_sweep_honors_cancellation_before_moving():
         )
 
 
+def test_batch_preserves_each_sweep_and_reports_progress():
+    class Motor:
+        def move_absolute(self, _position_mm):
+            pass
+
+    class Sensor:
+        def __init__(self):
+            self.read_count = 0
+
+        def read_voltage(self):
+            self.read_count += 1
+            return float(self.read_count)
+
+    progress = []
+    completed = []
+    results = VoltageSweep(Motor(), Sensor()).run_batch(
+        0.0,
+        1.0,
+        2,
+        0.0,
+        2,
+        progress_callback=progress.append,
+        run_finished_callback=lambda run_number, measurements: completed.append(
+            (run_number, measurements)
+        ),
+    )
+
+    assert len(results) == 2
+    assert results[0] == [MeasurementPoint(0.0, 1.0), MeasurementPoint(1.0, 2.0)]
+    assert results[1] == [MeasurementPoint(0.0, 3.0), MeasurementPoint(1.0, 4.0)]
+    assert [item.run_number for item in progress] == [1, 1, 2, 2]
+    assert [item.total_runs for item in progress] == [2, 2, 2, 2]
+    assert [run_number for run_number, _ in completed] == [1, 2]
+
+
+def test_batch_rejects_zero_runs():
+    with pytest.raises(ValueError, match="al menos un barrido"):
+        VoltageSweep(object(), object()).run_batch(0.0, 1.0, 2, 0.0, 0)
+
+
 def test_sweep_rejects_negative_stabilization_time():
     with pytest.raises(ValueError, match="no puede ser negativo"):
         VoltageSweep(object(), object()).run(0.0, 1.0, 2, -0.1)
