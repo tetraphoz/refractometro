@@ -86,7 +86,6 @@ class VoltageSweep:
 
         return results
 
-    # TODO: Find multiple peaks
     @staticmethod
     def find_peak(
         measurements: list[MeasurementPoint],

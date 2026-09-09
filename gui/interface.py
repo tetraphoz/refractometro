@@ -13,7 +13,12 @@ from app.operation_state import OperationState
 from app.run_history import RunHistory
 from app.run_io import export_run_csv, import_run_csv
 from app.run_naming import run_filename
-from app.run_processing import average_runs, format_peak_summary, subtract_reference
+from app.run_processing import (
+    average_runs,
+    averageable_runs,
+    format_peak_summary,
+    subtract_reference,
+)
 from app.run_repository import RunRepository
 from experiments.voltage_sweep import MeasurementPoint
 from gui.plot_view import update_curve
@@ -623,11 +628,8 @@ class ControlInterface:
     def average_completed_runs(self) -> None:
         runs = [
             run
-            for run in self._run_history.runs
+            for run in averageable_runs(self._run_history.runs)
             if run is not self._run_history.active_run
-            and run.kind != "promedio"
-            and run.status is RunStatus.COMPLETED
-            and run.measurements
             and self._run_curve_is_visible(run)
         ]
 

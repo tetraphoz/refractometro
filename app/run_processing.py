@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from app.models import RunRecord
+from app.models import RunRecord, RunStatus
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import MeasurementPoint
 
@@ -32,6 +32,17 @@ def subtract_reference(
         raise ValueError("Ambas corridas necesitan mediciones para poder restar")
 
     return CalibrationCurve(reference_measurements).subtract(measurements)
+
+
+def averageable_runs(runs: Sequence[RunRecord]) -> list[RunRecord]:
+    """Return completed source runs that can participate in an average."""
+    return [
+        run
+        for run in runs
+        if run.kind != "promedio"
+        and run.status is RunStatus.COMPLETED
+        and run.measurements
+    ]
 
 
 def average_runs(runs: Sequence[RunRecord]) -> list[MeasurementPoint]:

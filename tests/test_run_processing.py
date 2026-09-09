@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import RunRecord
+from app.models import RunRecord, RunStatus
 from app.run_processing import (
     average_runs,
+    averageable_runs,
     format_peak_summary,
     interpolate,
     subtract_reference,
@@ -59,6 +60,18 @@ def test_subtract_reference_interpolates_reference_points():
 def test_subtract_reference_requires_measurements():
     with pytest.raises(ValueError, match="Ambas corridas"):
         subtract_reference(make_run(1, []), make_run(2, []))
+
+
+def test_averageable_runs_excludes_incomplete_and_derived_runs():
+    completed = make_run(1, [MeasurementPoint(0.0, 0.1)])
+    completed.status = RunStatus.COMPLETED
+
+    pending = make_run(2, [MeasurementPoint(0.0, 0.2)])
+    derived = make_run(3, [MeasurementPoint(0.0, 0.3)])
+    derived.kind = "promedio"
+    derived.status = RunStatus.COMPLETED
+
+    assert averageable_runs([completed, pending, derived]) == [completed]
 
 
 def test_average_runs_interpolates_to_common_grid():
