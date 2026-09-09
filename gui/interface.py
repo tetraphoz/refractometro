@@ -140,16 +140,27 @@ class ControlInterface:
             f"hist_corregir_{run_id}",
             f"hist_eliminar_{run_id}",
             f"hist_peaks_{run_id}",
-            f"hist_acciones_{run_id}",
+            f"hist_guardar_{run_id}",
+            f"hist_corregir_{run_id}",
+            f"hist_peaks_{run_id}",
+            f"hist_exportar_{run_id}",
+            f"hist_proveniencia_{run_id}",
+            f"hist_eliminar_{run_id}",
         ]
         for tag in tags:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
 
     def _set_failed_run_buttons_state(self, run: RunRecord) -> None:
-        """Keep the compact action menu available for a failed run."""
+        """Leave a failed run removable and enable useful context actions."""
+        has_measurements = bool(run.measurements)
         states = {
-            f"hist_acciones_{run.id}": True,
+            f"hist_guardar_{run.id}": has_measurements,
+            f"hist_corregir_{run.id}": has_measurements,
+            f"hist_peaks_{run.id}": has_measurements,
+            f"hist_exportar_{run.id}": has_measurements,
+            f"hist_proveniencia_{run.id}": True,
+            f"hist_eliminar_{run.id}": True,
         }
 
         for tag, enabled in states.items():
@@ -501,9 +512,8 @@ class ControlInterface:
 
     def _add_history_table_columns(self) -> None:
         dpg.add_table_column(label="Ver", init_width_or_weight=0.07)
-        dpg.add_table_column(label="Corrida", init_width_or_weight=0.39)
-        dpg.add_table_column(label="Estado y pico", init_width_or_weight=0.3)
-        dpg.add_table_column(label="Acciones", init_width_or_weight=0.24)
+        dpg.add_table_column(label="Corrida", init_width_or_weight=0.5)
+        dpg.add_table_column(label="Estado y pico", init_width_or_weight=0.43)
 
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
@@ -529,41 +539,56 @@ class ControlInterface:
             with dpg.table_cell():
                 dpg.add_text("", tag=f"hist_status_text_{run.id}")
                 dpg.add_text("", tag=f"hist_peaks_text_{run.id}")
-            with dpg.table_cell():
-                dpg.add_combo(
-                    items=[
-                        "Acciones...",
-                        "Guardar CSV",
-                        "Corregir",
-                        "Mostrar picos",
-                        "Ver origen",
-                        "Exportar PNG",
-                        "Eliminar",
-                    ],
-                    default_value="Acciones...",
-                    tag=f"hist_acciones_{run.id}",
-                    callback=self.execute_run_action,
-                    user_data=run.id,
-                    width=-1,
-                )
+
+        with dpg.popup(run.text_tag, mousebutton=dpg.mvMouseButton_Right):
+            dpg.add_text(run.label)
+            dpg.add_separator()
+            dpg.add_button(
+                label="Guardar CSV",
+                tag=f"hist_guardar_{run.id}",
+                callback=self.on_click_save_run,
+                user_data=run.id,
+                width=-1,
+            )
+            dpg.add_button(
+                label="Corregir con blanco",
+                tag=f"hist_corregir_{run.id}",
+                callback=self.on_click_correct_run,
+                user_data=run.id,
+                width=-1,
+            )
+            dpg.add_button(
+                label="Mostrar u ocultar picos",
+                tag=f"hist_peaks_{run.id}",
+                callback=self.on_click_peaks,
+                user_data=run.id,
+                width=-1,
+            )
+            dpg.add_button(
+                label="Ver origen y parámetros",
+                tag=f"hist_proveniencia_{run.id}",
+                callback=self.show_run_provenance,
+                user_data=run.id,
+                width=-1,
+            )
+            dpg.add_button(
+                label="Exportar PNG",
+                tag=f"hist_exportar_{run.id}",
+                callback=self.on_click_export_run,
+                user_data=run.id,
+                width=-1,
+            )
+            dpg.add_separator()
+            dpg.add_button(
+                label="Eliminar",
+                tag=f"hist_eliminar_{run.id}",
+                callback=self.on_click_delete_run,
+                user_data=run.id,
+                width=-1,
+            )
 
         self.update_history_text(run)
-
-    def execute_run_action(self, sender, action: str, run_id: int) -> None:
-        """Run a compact history-table action selected from its dropdown."""
-        callbacks = {
-            "Guardar CSV": self.on_click_save_run,
-            "Corregir": self.on_click_correct_run,
-            "Mostrar picos": self.on_click_peaks,
-            "Ver origen": self.show_run_provenance,
-            "Exportar PNG": self.on_click_export_run,
-            "Eliminar": self.on_click_delete_run,
-        }
-        callback = callbacks.get(action)
-        if callback is not None:
-            callback(sender, action, run_id)
-        if dpg.does_item_exist(sender):
-            dpg.set_value(sender, "Acciones...")
+        dpg.configure_item(f"hist_peaks_{run.id}", enabled=bool(run.measurements))
 
     def update_history_text(self, run: RunRecord) -> None:
         status_text = {
@@ -1934,20 +1959,28 @@ class ControlInterface:
                                         width=-1,
                                     )
 
-                            with dpg.group(horizontal=True):
-                                dpg.add_button(
-                                    tag="barrido_btn",
-                                    label="Barrido / lote",
-                                    callback=self.start_sweep,
-                                    width=150,
-                                )
-
-                                dpg.add_button(
-                                    tag="calibrar_btn",
-                                    label="Calibración / lote",
-                                    callback=self.start_calibration,
-                                    width=150,
-                                )
+                            with dpg.table(
+                                header_row=False,
+                                borders_innerV=True,
+                                policy=dpg.mvTable_SizingStretchProp,
+                            ):
+                                dpg.add_table_column(init_width_or_weight=0.5)
+                                dpg.add_table_column(init_width_or_weight=0.5)
+                                with dpg.table_row():
+                                    with dpg.table_cell():
+                                        dpg.add_button(
+                                            tag="barrido_btn",
+                                            label="Barrido / lote",
+                                            callback=self.start_sweep,
+                                            width=-1,
+                                        )
+                                    with dpg.table_cell():
+                                        dpg.add_button(
+                                            tag="calibrar_btn",
+                                            label="Calibración / lote",
+                                            callback=self.start_calibration,
+                                            width=-1,
+                                        )
 
                             with dpg.group(horizontal=True):
                                 dpg.add_button(
@@ -1997,7 +2030,10 @@ class ControlInterface:
                                 height=400,
                                 border=True,
                             ):
-                                dpg.add_text("Resultados individuales y derivados")
+                                dpg.add_text(
+                                    "Resultados individuales y derivados "
+                                    "(clic derecho en una fila para acciones)"
+                                )
                                 with dpg.table(
                                     tag="historial_general",
                                     header_row=True,
