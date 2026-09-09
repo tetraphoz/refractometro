@@ -87,18 +87,6 @@ class VoltageSweep:
         return results
 
     @staticmethod
-    def find_peak(
-        measurements: list[MeasurementPoint],
-    ) -> MeasurementPoint:
-        if not measurements:
-            raise ValueError("No hay mediciones")
-
-        return max(
-            measurements,
-            key=lambda item: item.voltage_v,
-        )
-
-    @staticmethod
     def find_peaks(
         measurements: list[MeasurementPoint],
     ) -> list[MeasurementPoint]:
