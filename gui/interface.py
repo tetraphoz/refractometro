@@ -740,10 +740,12 @@ class ControlInterface:
             or "- Sin fuentes derivadas"
         )
         parameters = json.dumps(run.analysis_parameters, indent=2, ensure_ascii=False)
+        dpg.set_value("modal_proveniencia_titulo", f"Proveniencia: {run.label}")
         dpg.set_value(
-            "resultado_maximo",
-            f"Proveniencia de {run.label}\nFuentes:\n{source_text}\nParámetros:\n{parameters}",
+            "modal_proveniencia_texto",
+            f"Fuentes:\n{source_text}\n\nParámetros:\n{parameters}",
         )
+        dpg.show_item("modal_proveniencia")
 
     def on_click_delete_run(self, sender, app_data, user_data) -> None:
         run = self._run_history.get(user_data)
@@ -1770,6 +1772,29 @@ class ControlInterface:
                     label="Cancelar",
                     callback=lambda: self.cancel_correction(),
                 )
+
+        with dpg.window(
+            label="Origen y parámetros",
+            modal=True,
+            show=False,
+            tag="modal_proveniencia",
+            width=700,
+            height=520,
+            no_resize=True,
+        ):
+            dpg.add_text("", tag="modal_proveniencia_titulo")
+            dpg.add_separator()
+            with dpg.child_window(
+                height=420,
+                border=True,
+                horizontal_scrollbar=True,
+            ):
+                dpg.add_text("", tag="modal_proveniencia_texto", wrap=640)
+            dpg.add_button(
+                label="Cerrar",
+                callback=lambda: dpg.hide_item("modal_proveniencia"),
+                width=-1,
+            )
 
         with dpg.window(
             tag="ventana_principal",
