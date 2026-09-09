@@ -34,10 +34,10 @@ selección de datos para un análisis.
 + [ ] Recuperar un lote interrumpido después de reiniciar la aplicación.
 
 ** TODO Promediar un lote de barridos
-+ [ ] Seleccionar explícitamente el lote fuente, independientemente de la
-+   visibilidad de sus curvas.
++ [X] Seleccionar explícitamente el lote fuente, independientemente de la
++  visibilidad de sus curvas.
 + [ ] Validar que las corridas pertenezcan a un protocolo compatible.
-+ [ ] Excluir corridas fallidas, canceladas, incompletas o marcadas como inválidas.
++ [X] Excluir corridas fallidas, canceladas o incompletas.
 + [X] Interpolar las corridas a una cuadrícula común sobre el rango compartido.
 + [X] Calcular la curva promedio y conservar los UID de todas las fuentes.
 + [ ] Guardar los parámetros del promedio: cantidad de fuentes, rango,
@@ -47,10 +47,10 @@ selección de datos para un análisis.
 + [ ] Hacer visible la diferencia entre datos crudos y resultado promedio.
 
 ** TODO Crear calibraciones a partir de lotes sin muestra
-+ [ ] Usar el mismo protocolo de adquisición y promedio que para una muestra.
-+ [ ] Identificar claramente una sesión como blanco/sin muestra.
-+ [ ] Crear la curva de calibración a partir del promedio de sus barridos.
-+ [ ] Evitar que una calibración se confunda con una corrida de muestra.
++ [X] Usar el mismo protocolo de adquisición y promedio que para una muestra.
++ [X] Identificar claramente una sesión como blanco/sin muestra.
++ [X] Crear la curva de calibración a partir del promedio de sus barridos.
++ [X] Evitar que una calibración se confunda con una corrida de muestra.
 + [ ] Validar estabilidad y repetibilidad antes de aceptar la calibración.
 + [ ] Asociar la calibración con sensor, motor, configuración y fecha.
 + [ ] Versionar perfiles de calibración sin sobrescribir resultados anteriores.

@@ -133,6 +133,7 @@ def test_repository_persists_sessions_and_their_raw_runs(tmp_path):
     assert loaded.protocol_parameters == {"number_of_points": 20}
     assert loaded_run is not None
     assert loaded_run.session_uid == session.uid
+    assert repository.list_runs_for_session(session.uid) == [loaded_run]
     repository.close()
 
 

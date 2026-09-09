@@ -244,6 +244,15 @@ class RunRepository:
             rows = self._connection.execute("SELECT * FROM runs ORDER BY id").fetchall()
             return [self._build_run(row) for row in rows]
 
+    def list_runs_for_session(self, session_uid: str) -> list[RunRecord]:
+        """Return raw runs of a session in acquisition order."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM runs WHERE session_uid = ? ORDER BY id",
+                (session_uid,),
+            ).fetchall()
+            return [self._build_run(row) for row in rows]
+
     def delete(self, run_id: int) -> None:
         with self._lock, self._connection:
             self._connection.execute("DELETE FROM runs WHERE id = ?", (run_id,))
