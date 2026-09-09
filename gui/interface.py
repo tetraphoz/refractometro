@@ -1263,6 +1263,10 @@ class ControlInterface:
         batch_runs: dict[int, RunRecord] = {}
         try:
             self._set_operation_buttons_enabled(False)
+            # Una leyenda dentro del gráfico no escala a lotes de 20+ curvas.
+            # El historial tabular conserva las etiquetas detalladas.
+            dpg.set_value("mostrar_leyenda", False)
+            self.toggle_plot_legend(None, False, None)
             protocol = SweepProtocol(
                 start_position_mm=dpg.get_value("posicion_inicio"),
                 end_position_mm=dpg.get_value("posicion_final"),
@@ -2115,7 +2119,8 @@ class ControlInterface:
                         ):
                             dpg.add_checkbox(
                                 label="Mostrar leyenda de la gráfica",
-                                default_value=True,
+                                tag="mostrar_leyenda",
+                                default_value=False,
                                 callback=self.toggle_plot_legend,
                             )
 
@@ -2156,7 +2161,7 @@ class ControlInterface:
                             height=800,
                             width=-1,
                         ):
-                            dpg.add_plot_legend(tag="plot_legend")
+                            dpg.add_plot_legend(tag="plot_legend", show=False)
 
                             dpg.add_plot_axis(
                                 dpg.mvXAxis,
