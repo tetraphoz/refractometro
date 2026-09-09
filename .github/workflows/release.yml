@@ -1,0 +1,86 @@
+name: Build release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: refractometro-linux-x86_64
+            archive: refractometro-linux-x86_64.tar.gz
+
+          - os: windows-latest
+            artifact: refractometro-windows-x86_64
+            archive: refractometro-windows-x86_64.zip
+
+          - os: macos-latest
+            artifact: refractometro-macos
+            archive: refractometro-macos.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Build application
+        run: uv run pyinstaller refractometro.spec
+
+      - name: Package Linux
+        if: runner.os == 'Linux'
+        run: |
+          tar -czf "${{ matrix.archive }}" -C dist refractometro
+
+      - name: Package macOS
+        if: runner.os == 'macOS'
+        run: |
+          zip -r "${{ matrix.archive }}" dist/refractometro
+
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path dist/refractometro `
+            -DestinationPath "${{ matrix.archive }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.archive }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/**/*
+          generate_release_notes: true
