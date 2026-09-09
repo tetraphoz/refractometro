@@ -94,6 +94,7 @@ class ControlInterface:
         # callbacks del controlador con las curvas mostradas en vivo.
         self._active_batch_session: MeasurementSession | None = None
         self._batch_runs: dict[int, RunRecord] = {}
+        self._session_history_groups: dict[str, str] = {}
 
     # Helpers
     def log(
@@ -366,8 +367,88 @@ class ControlInterface:
 
         return run
 
+    @staticmethod
+    def _session_history_header_tag(session_uid: str) -> str:
+        return f"hist_session_{session_uid}"
+
+    @staticmethod
+    def _session_history_runs_tag(session_uid: str) -> str:
+        return f"hist_session_runs_{session_uid}"
+
+    @staticmethod
+    def _session_history_status_tag(session_uid: str) -> str:
+        return f"hist_session_status_{session_uid}"
+
+    def _ensure_session_history_group(self, session: MeasurementSession) -> str:
+        """Create the expandable history section for one explicit batch."""
+        runs_tag = self._session_history_runs_tag(session.uid)
+        if dpg.does_item_exist(runs_tag):
+            self._session_history_groups[session.uid] = runs_tag
+            return runs_tag
+
+        header_tag = self._session_history_header_tag(session.uid)
+        with dpg.collapsing_header(
+            label=session.label,
+            tag=header_tag,
+            parent="historial_lista",
+            default_open=True,
+        ):
+            dpg.add_input_text(
+                label="Nombre de muestra",
+                default_value=session.label,
+                tag=f"hist_session_name_{session.uid}",
+                callback=self.rename_session,
+                user_data=session.uid,
+                on_enter=True,
+                width=-1,
+            )
+            dpg.add_text(
+                f"Estado del lote: {session.status.value}",
+                tag=self._session_history_status_tag(session.uid),
+            )
+            dpg.add_group(tag=runs_tag)
+        self._session_history_groups[session.uid] = runs_tag
+        return runs_tag
+
+    def _update_session_history_status(self, session: MeasurementSession) -> None:
+        status_tag = self._session_history_status_tag(session.uid)
+        if dpg.does_item_exist(status_tag):
+            dpg.set_value(status_tag, f"Estado del lote: {session.status.value}")
+
+    def rename_session(self, _sender, value: str, session_uid: str) -> None:
+        """Persist the editable sample name shown in a batch dropdown."""
+        name = value.strip()
+        session = self._repository.get_session(session_uid)
+        if session is None:
+            self.log("[LOTE ERROR] No se encontró la sesión para renombrar")
+            return
+        if not name:
+            dpg.set_value(f"hist_session_name_{session_uid}", session.label)
+            self.log("[LOTE ERROR] El nombre de muestra no puede estar vacío")
+            return
+
+        session.label = name
+        if (
+            self._active_batch_session is not None
+            and self._active_batch_session.uid == session_uid
+        ):
+            self._active_batch_session.label = name
+        self._repository.save_session(session)
+        header_tag = self._session_history_header_tag(session_uid)
+        if dpg.does_item_exist(header_tag):
+            dpg.configure_item(header_tag, label=name)
+        self.log(f"[LOTE] Nombre actualizado: {name}")
+
+    def _history_parent_for_run(self, run: RunRecord) -> str:
+        if run.session_uid is None:
+            return "historial_lista"
+        session = self._repository.get_session(run.session_uid)
+        if session is None:
+            return "historial_lista"
+        return self._ensure_session_history_group(session)
+
     def add_history_row(self, run: RunRecord) -> None:
-        with dpg.group(tag=run.row_tag, parent="historial_lista"):
+        with dpg.group(tag=run.row_tag, parent=self._history_parent_for_run(run)):
             # Top row: checkbox + run label
             with dpg.group(horizontal=True):
                 dpg.add_checkbox(
@@ -1012,8 +1093,9 @@ class ControlInterface:
                 stabilization_time_s=dpg.get_value("tiempo_estabilizacion"),
             )
             purpose = "Blanco" if session_kind is SessionKind.CALIBRATION else "Muestra"
+            sample_name = dpg.get_value("nombre_muestra").strip() or purpose
             session = MeasurementSession(
-                label=f"{purpose} lote",
+                label=sample_name,
                 kind=session_kind,
                 expected_runs=number_of_runs,
             )
@@ -1021,12 +1103,13 @@ class ControlInterface:
             self._repository.save_session(session)
             session.transition_to(SessionStatus.ACQUIRING)
             self._repository.save_session(session)
+            self._ensure_session_history_group(session)
 
             os.makedirs(self.RUNS_DIR, exist_ok=True)
             for run_number in range(1, number_of_runs + 1):
                 run = self.create_live_run(
                     "barrido",
-                    f"{purpose} {session.uid[:8]} — barrido {run_number}/{number_of_runs}",
+                    f"{session.label} — barrido {run_number}/{number_of_runs}",
                     set_active=False,
                 )
                 run.filename = os.path.join(
@@ -1038,6 +1121,10 @@ class ControlInterface:
                 run.status = RunStatus.PENDING
                 self._run_history.save(run)
                 self._repository.attach_run_to_session(run, session)
+                dpg.move_item(
+                    run.row_tag,
+                    parent=self._session_history_runs_tag(session.uid),
+                )
                 batch_runs[run_number] = run
                 self._set_run_buttons_enabled(run.id, False)
 
@@ -1148,6 +1235,7 @@ class ControlInterface:
             }:
                 session.transition_to(status)
                 self._repository.save_session(session)
+                self._update_session_history_status(session)
             dpg.set_value("resultado_maximo", "")
             self.log(message)
             self._active_batch_session = None
@@ -1293,6 +1381,7 @@ class ControlInterface:
             if session is not None and session.status is not target_status:
                 session.transition_to(target_status)
                 self._repository.save_session(session)
+                self._update_session_history_status(session)
             self.log(message)
         else:
             self.log("[OPERACIÓN] No hay una adquisición para pausar o reanudar")
@@ -1701,6 +1790,14 @@ class ControlInterface:
                             ):
                                 dpg.add_table_column(init_width_or_weight=0.42)
                                 dpg.add_table_column(init_width_or_weight=0.58)
+
+                                with dpg.table_row():
+                                    dpg.add_text("Muestra / blanco")
+                                    dpg.add_input_text(
+                                        tag="nombre_muestra",
+                                        default_value="Muestra",
+                                        width=-1,
+                                    )
 
                                 with dpg.table_row():
                                     dpg.add_text("Inicio (mm)")
