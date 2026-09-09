@@ -47,6 +47,17 @@ class VoltageSweep:
         self.motor = motor
         self.sensor = sensor
 
+    @staticmethod
+    def _wait_until_resumed(
+        resume_event: threading.Event | None,
+        cancel_event: threading.Event | None,
+    ) -> None:
+        if resume_event is None:
+            return
+        while not resume_event.wait(timeout=0.05):
+            if cancel_event is not None and cancel_event.is_set():
+                raise OperationCancelled
+
     def run(
         self,
         start_position_mm: float,
@@ -55,6 +66,7 @@ class VoltageSweep:
         stabilization_time_s: float,
         progress_callback: Callable[[list[MeasurementPoint]], None] | None = None,
         cancel_event: threading.Event | None = None,
+        resume_event: threading.Event | None = None,
     ) -> list[MeasurementPoint]:
         if number_of_points < 2:
             raise ValueError("Se necesitan al menos dos puntos")
@@ -68,6 +80,7 @@ class VoltageSweep:
         for index in range(number_of_points):
             if cancel_event is not None and cancel_event.is_set():
                 raise OperationCancelled
+            self._wait_until_resumed(resume_event, cancel_event)
 
             position_mm = start_position_mm + index * step_mm
 
@@ -107,6 +120,7 @@ class VoltageSweep:
             Callable[[int, list[MeasurementPoint]], None] | None
         ) = None,
         cancel_event: threading.Event | None = None,
+        resume_event: threading.Event | None = None,
     ) -> list[list[MeasurementPoint]]:
         """Acquire repeated sweeps while preserving each raw result."""
         if number_of_runs < 1:
@@ -136,6 +150,7 @@ class VoltageSweep:
                 stabilization_time_s=stabilization_time_s,
                 progress_callback=on_progress,
                 cancel_event=cancel_event,
+                resume_event=resume_event,
             )
             results.append(measurements)
 

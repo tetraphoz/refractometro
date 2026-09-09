@@ -45,6 +45,7 @@ class ApplicationController:
         self._sweep_thread: threading.Thread | None = None
         self._state_lock = threading.Lock()
         self._cancel_event: threading.Event | None = None
+        self._resume_event: threading.Event | None = None
         self._laser_started_at = time.monotonic()
         self._operation_status = OperationStatus.IDLE
 
@@ -74,18 +75,44 @@ class ApplicationController:
                 raise RuntimeError("Ya hay una operación en curso")
             self._operation_status = OperationStatus.RUNNING
             self._cancel_event = threading.Event()
+            self._resume_event = threading.Event()
+            self._resume_event.set()
             return self._cancel_event
 
     def _end_operation(self) -> None:
         with self._state_lock:
             self._operation_status = OperationStatus.IDLE
             self._cancel_event = None
+            self._resume_event = None
+
+    def pause_operation(self) -> bool:
+        """Pause a sweep safely before its next measurement point."""
+        with self._state_lock:
+            if self._operation_status is not OperationStatus.RUNNING:
+                return False
+            self._operation_status = OperationStatus.PAUSED
+            if self._resume_event is not None:
+                self._resume_event.clear()
+            return True
+
+    def resume_operation(self) -> bool:
+        """Resume an acquisition previously paused by ``pause_operation``."""
+        with self._state_lock:
+            if self._operation_status is not OperationStatus.PAUSED:
+                return False
+            self._operation_status = OperationStatus.RUNNING
+            if self._resume_event is not None:
+                self._resume_event.set()
+            return True
 
     def cancel_operation(self) -> bool:
         """Request cancellation and stop the motor when supported."""
         with self._state_lock:
             cancel_event = self._cancel_event
-            if self._operation_status is not OperationStatus.RUNNING:
+            if self._operation_status not in {
+                OperationStatus.RUNNING,
+                OperationStatus.PAUSED,
+            }:
                 return False
             self._operation_status = OperationStatus.CANCELLING
 
@@ -93,6 +120,9 @@ class ApplicationController:
             return False
 
         cancel_event.set()
+        with self._state_lock:
+            if self._resume_event is not None:
+                self._resume_event.set()
 
         try:
             self.motor.stop()
@@ -220,6 +250,7 @@ class ApplicationController:
                     stabilization_time_s=stabilization_time_s,
                     progress_callback=on_progress,
                     cancel_event=cancel_event,
+                    resume_event=self._resume_event,
                 )
 
                 # Save CSV with metadata
@@ -387,6 +418,7 @@ class ApplicationController:
                     progress_callback=on_progress,
                     run_finished_callback=save_run,
                     cancel_event=cancel_event,
+                    resume_event=self._resume_event,
                 )
             except OperationCancelled:
                 cancelled = True
@@ -449,6 +481,7 @@ class ApplicationController:
                     stabilization_time_s=stabilization_time_s,
                     progress_callback=on_progress,
                     cancel_event=cancel_event,
+                    resume_event=self._resume_event,
                 )
 
                 self.calibration = CalibrationCurve(measurements)

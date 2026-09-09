@@ -28,7 +28,7 @@ selección de datos para un análisis.
 + [X] Guardar cada barrido crudo inmediatamente al terminarlo.
 + [X] Mostrar progreso del barrido actual y progreso total del lote.
 + [X] Permitir cancelación segura conservando los resultados parciales.
-+ [ ] Permitir pausa y reanudación sin perder la sesión.
++ [X] Permitir pausa y reanudación sin perder la sesión.
 + [ ] Añadir reintentos configurables para un barrido fallido.
 + [ ] Registrar el motivo de cada fallo, cancelación o exclusión.
 + [ ] Recuperar un lote interrumpido después de reiniciar la aplicación.

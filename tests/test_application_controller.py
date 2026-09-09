@@ -138,6 +138,49 @@ def test_test_hardware_acquires_a_voltage_batch(tmp_path):
     assert (tmp_path / "sim-2.csv").exists()
 
 
+def test_voltage_batch_can_pause_and_resume_between_measurements(tmp_path):
+    controller = ApplicationController(
+        motor=RecordingMotor(),
+        sensor=ConstantSensor(),
+    )
+    paused_event = threading.Event()
+    finished_event = threading.Event()
+    progress_counts: list[int] = []
+    paused_once = False
+
+    def on_progress(progress) -> None:
+        nonlocal paused_once
+        progress_counts.append(len(progress.measurements))
+        if (
+            not paused_once
+            and len(progress.measurements) == 1
+            and controller.pause_operation()
+        ):
+            paused_once = True
+            paused_event.set()
+
+    controller.start_voltage_batch(
+        start_position_mm=0.0,
+        end_position_mm=1.0,
+        number_of_points=3,
+        stabilization_time_s=0.0,
+        number_of_runs=2,
+        filename_factory=lambda run_number: str(tmp_path / f"paused-{run_number}.csv"),
+        on_progress=on_progress,
+        on_finished=lambda _batch: finished_event.set(),
+    )
+
+    assert paused_event.wait(timeout=1.0)
+    assert controller.operation_status is OperationStatus.PAUSED
+    assert progress_counts == [1]
+    assert controller.resume_operation()
+    assert finished_event.wait(timeout=1.0)
+    assert controller._sweep_thread is not None
+    controller._sweep_thread.join(timeout=1.0)
+    assert controller.operation_status is OperationStatus.IDLE
+    assert progress_counts[-1] == 3
+
+
 def test_voltage_batch_cancellation_keeps_completed_raw_runs(tmp_path):
     controller = ApplicationController(
         motor=RecordingMotor(),

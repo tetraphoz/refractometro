@@ -16,7 +16,7 @@ from app.models import (
     SessionStatus,
     SweepProtocol,
 )
-from app.operation_state import OperationState
+from app.operation_state import OperationState, OperationStatus
 from app.run_history import RunHistory
 from app.run_io import export_run_csv, import_run_csv
 from app.run_naming import run_filename
@@ -116,6 +116,17 @@ class ControlInterface:
         if dpg.does_item_exist("cancelar_btn"):
             dpg.configure_item("cancelar_btn", enabled=enabled)
 
+    def _update_pause_button_state(self) -> None:
+        if not dpg.does_item_exist("pausar_btn"):
+            return
+        paused = self.controller.operation_status is OperationStatus.PAUSED
+        dpg.configure_item(
+            "pausar_btn",
+            enabled=self.controller.operation_status
+            in {OperationStatus.RUNNING, OperationStatus.PAUSED},
+            label="Reanudar" if paused else "Pausar",
+        )
+
     def toggle_plot_legend(self, sender, value, user_data) -> None:
         if dpg.does_item_exist("plot_legend"):
             dpg.configure_item("plot_legend", show=value)
@@ -160,6 +171,7 @@ class ControlInterface:
         )
         self._set_operation_buttons_enabled(enabled)
         self._set_cancel_button_enabled(self.controller.sweep_running)
+        self._update_pause_button_state()
 
     # Historial de corridas
     def create_live_run(
@@ -1130,7 +1142,10 @@ class ControlInterface:
                     self._run_history.save(run)
                     self.update_history_text(run)
                     self._set_failed_run_buttons_state(run)
-            if session is not None and session.status is SessionStatus.ACQUIRING:
+            if session is not None and session.status in {
+                SessionStatus.ACQUIRING,
+                SessionStatus.PAUSED,
+            }:
                 session.transition_to(status)
                 self._repository.save_session(session)
             dpg.set_value("resultado_maximo", "")
@@ -1262,6 +1277,26 @@ class ControlInterface:
 
     def calibration_failed(self, exc: Exception) -> None:
         self.operation_failed("CALIBRACIÓN", exc)
+
+    def toggle_pause_operation(self) -> None:
+        session = self._active_batch_session
+        if self.controller.operation_status is OperationStatus.PAUSED:
+            resumed = self.controller.resume_operation()
+            target_status = SessionStatus.ACQUIRING
+            message = "[OPERACIÓN] Reanudada"
+        else:
+            resumed = self.controller.pause_operation()
+            target_status = SessionStatus.PAUSED
+            message = "[OPERACIÓN] Pausada"
+
+        if resumed:
+            if session is not None and session.status is not target_status:
+                session.transition_to(target_status)
+                self._repository.save_session(session)
+            self.log(message)
+        else:
+            self.log("[OPERACIÓN] No hay una adquisición para pausar o reanudar")
+        self._update_operation_buttons_state()
 
     def cancel_operation(self) -> None:
         if self.controller.cancel_operation():
@@ -1736,13 +1771,21 @@ class ControlInterface:
                                     width=150,
                                 )
 
-                            dpg.add_button(
-                                tag="cancelar_btn",
-                                label="Cancelar",
-                                callback=self.cancel_operation,
-                                enabled=False,
-                                width=-1,
-                            )
+                            with dpg.group(horizontal=True):
+                                dpg.add_button(
+                                    tag="pausar_btn",
+                                    label="Pausar",
+                                    callback=self.toggle_pause_operation,
+                                    enabled=False,
+                                    width=150,
+                                )
+                                dpg.add_button(
+                                    tag="cancelar_btn",
+                                    label="Cancelar",
+                                    callback=self.cancel_operation,
+                                    enabled=False,
+                                    width=-1,
+                                )
 
                             dpg.add_progress_bar(
                                 default_value=0.0,

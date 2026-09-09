@@ -9,6 +9,7 @@ class OperationStatus(StrEnum):
 
     IDLE = "idle"
     RUNNING = "running"
+    PAUSED = "paused"
     CANCELLING = "cancelling"
 
 
