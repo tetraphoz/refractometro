@@ -1403,24 +1403,20 @@ class ControlInterface:
 
         self.log(f"[PEAKS] Calculados/mostrados {len(peaks)} picos para {run.label}")
 
-    def _run_curve_is_visible(self, run: RunRecord) -> bool:
-        if not dpg.does_item_exist(run.curve_tag):
-            return True
-        try:
-            return bool(dpg.get_item_configuration(run.curve_tag).get("show", True))
-        except (KeyError, RuntimeError):
-            return True
-
     def average_completed_runs(self) -> None:
+        """Average exactly the completed runs selected in the history table."""
         runs = [
             run
             for run in averageable_runs(self._run_history.runs)
-            if run is not self._run_history.active_run
-            and self._run_curve_is_visible(run)
+            if run.id in self._selected_run_ids
+            and run is not self._run_history.active_run
         ]
 
         if len(runs) < 2:
-            self.log("[PROMEDIO] Se necesitan al menos dos corridas visibles completas")
+            self.log(
+                "[PROMEDIO] Seleccione al menos dos corridas completas "
+                "para promediar"
+            )
             self._update_operation_buttons_state()
             return
 
