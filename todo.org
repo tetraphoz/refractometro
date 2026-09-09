@@ -44,7 +44,7 @@ selección de datos para un análisis.
 +  resolución e interpolación.
 + [X] Calcular desviación estándar y cantidad de observaciones por posición.
 + [ ] Permitir revisar y reincorporar corridas excluidas con una razón explícita.
-+ [ ] Hacer visible la diferencia entre datos crudos y resultado promedio.
++ [X] Hacer visible la diferencia entre datos crudos y resultado promedio.
 
 ** TODO Crear calibraciones a partir de lotes sin muestra
 + [X] Usar el mismo protocolo de adquisición y promedio que para una muestra.
@@ -96,10 +96,10 @@ selección de datos para un análisis.
 ** TODO Rediseñar la interfaz para el flujo de trabajo
 + [ ] Separar las vistas de configuración, adquisición, revisión y resultados.
 + [ ] Guiar al usuario por pasos: preparar, adquirir, revisar, promediar y analizar.
-+ [ ] Reemplazar controles ambiguos por acciones explícitas sobre lotes.
++ [X] Reemplazar controles ambiguos por acciones explícitas sobre lotes.
 + [ ] Mostrar por separado corridas crudas, promedios, calibraciones y corregidas.
-+ [ ] Mantener la visibilidad de gráficas independiente de la selección analítica.
-+ [ ] Mostrar el estado, progreso y acciones disponibles de la sesión actual.
++ [X] Mantener la visibilidad de gráficas independiente de la selección analítica.
++ [X] Mostrar el estado, progreso y acciones disponibles de la sesión actual.
 + [ ] Permitir revisar las fuentes y parámetros desde cada resultado derivado.
 + [ ] Mostrar advertencias cuando falten fuentes, calibración o calidad suficiente.
 + [ ] Mantener disponibles guardar, exportar y eliminar sin bloquear acciones útiles.

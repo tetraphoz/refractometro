@@ -27,6 +27,7 @@ from app.run_processing import (
     subtract_reference,
 )
 from app.run_repository import RunRepository
+from app.session_processing import average_session_run, calibration_session_run
 from experiments.voltage_sweep import BatchProgress, MeasurementPoint
 from gui.plot_view import update_curve
 from gui.themes import DANGER_THEME, create_button_themes, set_connection_button_visual
@@ -406,6 +407,16 @@ class ControlInterface:
                 f"Estado del lote: {session.status.value}",
                 tag=self._session_history_status_tag(session.uid),
             )
+            dpg.add_button(
+                label=(
+                    "Crear calibración promedio"
+                    if session.kind is SessionKind.CALIBRATION
+                    else "Crear promedio del lote"
+                ),
+                callback=self.create_session_average,
+                user_data=session.uid,
+                width=-1,
+            )
             dpg.add_group(tag=runs_tag)
         self._session_history_groups[session.uid] = runs_tag
         return runs_tag
@@ -438,6 +449,54 @@ class ControlInterface:
         if dpg.does_item_exist(header_tag):
             dpg.configure_item(header_tag, label=name)
         self.log(f"[LOTE] Nombre actualizado: {name}")
+
+    def create_session_average(self, _sender, _value, session_uid: str) -> None:
+        """Derive an average or calibration from this explicit batch only."""
+        session = self._repository.get_session(session_uid)
+        if session is None:
+            self.log("[PROMEDIO ERROR] No se encontró la sesión")
+            return
+
+        run_id = self._run_history.reserve_id()
+        curve_tag = f"curva_promedio_{run_id}"
+        try:
+            if session.kind is SessionKind.CALIBRATION:
+                derived = calibration_session_run(
+                    session,
+                    self._repository.list_runs_for_session(session.uid),
+                    run_id=run_id,
+                    curve_tag=curve_tag,
+                )
+            else:
+                derived = average_session_run(
+                    session,
+                    self._repository.list_runs_for_session(session.uid),
+                    run_id=run_id,
+                    curve_tag=curve_tag,
+                )
+        except ValueError as exc:
+            self.log(f"[PROMEDIO ERROR] {exc}")
+            return
+
+        dpg.add_line_series(
+            [point.position_mm for point in derived.measurements],
+            [point.voltage_v for point in derived.measurements],
+            label=derived.label,
+            parent="voltage_axis",
+            tag=derived.curve_tag,
+        )
+        dpg.add_scatter_series(
+            [],
+            [],
+            label=f"{derived.label} peaks",
+            parent="voltage_axis",
+            tag=f"peaks_{derived.id}",
+        )
+        self._run_history.add(derived)
+        self.add_history_row(derived)
+        self._set_run_buttons_enabled(derived.id, True)
+        self.update_history_text(derived)
+        self.log(f"[PROMEDIO] {derived.label} calculado")
 
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
