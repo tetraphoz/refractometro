@@ -6,6 +6,8 @@ import pytest
 
 from app.application import ApplicationController
 from app.operation_state import OperationStatus
+from hardware.simulated_motor import SimulatedMotor
+from hardware.simulated_sensor import SimulatedESP32Sensor
 
 
 class RecordingMotor:
@@ -106,6 +108,34 @@ def test_voltage_batch_persists_each_raw_run(tmp_path):
     assert len(results) == 2
     assert (tmp_path / "raw-1.csv").exists()
     assert (tmp_path / "raw-2.csv").exists()
+
+
+def test_test_hardware_acquires_a_voltage_batch(tmp_path):
+    motor = SimulatedMotor()
+    sensor = SimulatedESP32Sensor(motor)
+    motor.connect()
+    sensor.connect()
+    controller = ApplicationController(motor=motor, sensor=sensor)
+    finished_event = threading.Event()
+    results: list[list] = []
+
+    controller.start_voltage_batch(
+        start_position_mm=0.0,
+        end_position_mm=1.0,
+        number_of_points=2,
+        stabilization_time_s=0.0,
+        number_of_runs=2,
+        filename_factory=lambda run_number: str(tmp_path / f"sim-{run_number}.csv"),
+        on_finished=lambda batch: (results.extend(batch), finished_event.set()),
+    )
+
+    assert finished_event.wait(timeout=2.0)
+    assert controller._sweep_thread is not None
+    controller._sweep_thread.join(timeout=1.0)
+    assert len(results) == 2
+    assert all(len(run) == 2 for run in results)
+    assert (tmp_path / "sim-1.csv").exists()
+    assert (tmp_path / "sim-2.csv").exists()
 
 
 def test_voltage_batch_cancellation_keeps_completed_raw_runs(tmp_path):

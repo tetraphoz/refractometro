@@ -8,7 +8,14 @@ import dearpygui.dearpygui as dpg
 import serial.tools.list_ports
 
 from app.errors import OPERATION_ERRORS
-from app.models import RunRecord, RunStatus
+from app.models import (
+    MeasurementSession,
+    RunRecord,
+    RunStatus,
+    SessionKind,
+    SessionStatus,
+    SweepProtocol,
+)
 from app.operation_state import OperationState
 from app.run_history import RunHistory
 from app.run_io import export_run_csv, import_run_csv
@@ -20,7 +27,7 @@ from app.run_processing import (
     subtract_reference,
 )
 from app.run_repository import RunRepository
-from experiments.voltage_sweep import MeasurementPoint
+from experiments.voltage_sweep import BatchProgress, MeasurementPoint
 from gui.plot_view import update_curve
 from gui.themes import DANGER_THEME, create_button_themes, set_connection_button_visual
 from storage.image_plot import export_run_plot_png
@@ -81,6 +88,12 @@ class ControlInterface:
         # Corrida seleccionada para corregir, mientras el modal de
         # selección de blanco está abierto.
         self._run_a_corregir: RunRecord | None = None
+
+        # Estado transitorio de la adquisición de un lote. Las corridas y la
+        # sesión se persisten inmediatamente; estos mapas solo conectan los
+        # callbacks del controlador con las curvas mostradas en vivo.
+        self._active_batch_session: MeasurementSession | None = None
+        self._batch_runs: dict[int, RunRecord] = {}
 
     # Helpers
     def log(
@@ -153,6 +166,8 @@ class ControlInterface:
         self,
         kind: str,
         label: str,
+        *,
+        set_active: bool = True,
     ) -> RunRecord:
         """Crea una nueva corrida EN VIVO: reserva un id, agrega su curva
         vacía al gráfico y una fila en el panel de historial. Queda como
@@ -187,7 +202,8 @@ class ControlInterface:
         run.laser_on_time_s = self.controller.laser_on_time_s
         self._run_history.save(run)
 
-        self._run_history.set_active(run)
+        if set_active:
+            self._run_history.set_active(run)
 
         return run
 
@@ -961,9 +977,188 @@ class ControlInterface:
             self._update_operation_buttons_state()
 
     # Barrido
+    def start_batch(self, session_kind: SessionKind) -> None:
+        """Start a repeated sample or blank acquisition as a v3 session."""
+        if self._run_history.active_run is not None or self.controller.sweep_running:
+            self.log("[LOTE] Ya hay una operación en curso")
+            return
+
+        number_of_runs = dpg.get_value("cantidad_barridos")
+        number_of_points = dpg.get_value("cantidad_puntos")
+        if number_of_runs < 2 or number_of_points < 2:
+            self.log("[LOTE ERROR] Un lote necesita al menos dos barridos y puntos")
+            return
+
+        session = None
+        batch_runs: dict[int, RunRecord] = {}
+        try:
+            self._set_operation_buttons_enabled(False)
+            protocol = SweepProtocol(
+                start_position_mm=dpg.get_value("posicion_inicio"),
+                end_position_mm=dpg.get_value("posicion_final"),
+                number_of_points=number_of_points,
+                stabilization_time_s=dpg.get_value("tiempo_estabilizacion"),
+            )
+            purpose = "Blanco" if session_kind is SessionKind.CALIBRATION else "Muestra"
+            session = MeasurementSession(
+                label=f"{purpose} lote",
+                kind=session_kind,
+                expected_runs=number_of_runs,
+            )
+            session.set_sweep_protocol(protocol)
+            self._repository.save_session(session)
+            session.transition_to(SessionStatus.ACQUIRING)
+            self._repository.save_session(session)
+
+            os.makedirs(self.RUNS_DIR, exist_ok=True)
+            for run_number in range(1, number_of_runs + 1):
+                run = self.create_live_run(
+                    "barrido",
+                    f"{purpose} {session.uid[:8]} — barrido {run_number}/{number_of_runs}",
+                    set_active=False,
+                )
+                run.filename = os.path.join(
+                    self.RUNS_DIR,
+                    run_filename(run.kind, run.created_at, run.uid),
+                )
+                run.expected_points = number_of_points
+                run.stabilization_time_s = protocol.stabilization_time_s
+                run.status = RunStatus.PENDING
+                self._run_history.save(run)
+                self._repository.attach_run_to_session(run, session)
+                batch_runs[run_number] = run
+                self._set_run_buttons_enabled(run.id, False)
+
+            self._repository.save_session(session)
+            self._active_batch_session = session
+            self._batch_runs = batch_runs
+            dpg.set_value("resultado_maximo", "Adquiriendo lote...")
+            dpg.set_value("barrido_progress", 0.0)
+            dpg.set_value("lote_progress", 0.0)
+
+            self.controller.start_voltage_batch(
+                start_position_mm=protocol.start_position_mm,
+                end_position_mm=protocol.end_position_mm,
+                number_of_points=protocol.number_of_points,
+                stabilization_time_s=protocol.stabilization_time_s,
+                number_of_runs=number_of_runs,
+                filename_factory=lambda run_number: batch_runs[run_number].filename
+                or "",
+                metadata={
+                    "session_uid": session.uid,
+                    "session_kind": session.kind.value,
+                },
+                on_progress=self.update_batch_sweep,
+                on_run_finished=self.batch_run_finished,
+                on_finished=self.batch_finished,
+                on_error=self.batch_failed,
+                on_cancelled=self.batch_cancelled,
+            )
+            self._update_operation_buttons_state()
+            self.log(f"[LOTE] {purpose} iniciado ({number_of_runs} barridos)")
+        except OPERATION_ERRORS as exc:
+            self.log(f"[LOTE ERROR] {exc}")
+            for run in batch_runs.values():
+                self.delete_run(run)
+            if session is not None and session.status is SessionStatus.ACQUIRING:
+                session.transition_to(SessionStatus.CANCELLED)
+                self._repository.save_session(session)
+            self._active_batch_session = None
+            self._batch_runs = {}
+            self._update_operation_buttons_state()
+
+    def update_batch_sweep(self, progress: BatchProgress) -> None:
+        run = self._batch_runs.get(progress.run_number)
+        if run is None:
+            return
+
+        with dpg.mutex():
+            run.measurements = list(progress.measurements)
+            run.status = RunStatus.RUNNING
+            self._run_history.save(run)
+            update_curve(run.curve_tag, run.measurements)
+            current_progress = len(run.measurements) / (run.expected_points or 1)
+            dpg.set_value("barrido_progress", min(1.0, current_progress))
+            total_progress = (
+                progress.run_number - 1 + current_progress
+            ) / progress.total_runs
+            dpg.set_value("lote_progress", min(1.0, total_progress))
+            self.update_history_text(run)
+
+    def batch_run_finished(
+        self,
+        run_number: int,
+        measurements: list[MeasurementPoint],
+    ) -> None:
+        run = self._batch_runs.get(run_number)
+        if run is None:
+            return
+
+        with dpg.mutex():
+            run.measurements = list(measurements)
+            run.peaks = self.controller.sweep.find_peaks(run.measurements)
+            run.status = RunStatus.COMPLETED
+            self._run_history.save(run)
+            update_curve(run.curve_tag, run.measurements)
+
+            peaks_tag = f"peaks_{run.id}"
+            dpg.set_value(
+                peaks_tag,
+                [
+                    [peak.position_mm for peak in run.peaks],
+                    [peak.voltage_v for peak in run.peaks],
+                ],
+            )
+            dpg.configure_item(peaks_tag, show=bool(run.peaks))
+            dpg.set_value(
+                f"hist_peaks_text_{run.id}",
+                format_peak_summary(run.peaks),
+            )
+            self.update_history_text(run)
+            self._set_run_buttons_enabled(run.id, True)
+
+    def _finish_batch(self, status: SessionStatus, message: str) -> None:
+        session = self._active_batch_session
+        with dpg.mutex():
+            for run in self._batch_runs.values():
+                if run.status in {RunStatus.PENDING, RunStatus.RUNNING}:
+                    run.status = (
+                        RunStatus.CANCELLED
+                        if status is SessionStatus.CANCELLED
+                        else RunStatus.FAILED
+                    )
+                    self._run_history.save(run)
+                    self.update_history_text(run)
+                    self._set_failed_run_buttons_state(run)
+            if session is not None and session.status is SessionStatus.ACQUIRING:
+                session.transition_to(status)
+                self._repository.save_session(session)
+            dpg.set_value("resultado_maximo", "")
+            self.log(message)
+            self._active_batch_session = None
+            self._batch_runs = {}
+            self._update_operation_buttons_state()
+
+    def batch_finished(self, _results: list[list[MeasurementPoint]]) -> None:
+        self._finish_batch(SessionStatus.COMPLETED, "[LOTE] Finalizado")
+
+    def batch_cancelled(self, _results: list[list[MeasurementPoint]]) -> None:
+        self._finish_batch(SessionStatus.CANCELLED, "[LOTE] Cancelado")
+
+    def batch_failed(
+        self,
+        exc: Exception,
+        _partial_results: list[list[MeasurementPoint]],
+    ) -> None:
+        self._finish_batch(SessionStatus.FAILED, f"[LOTE ERROR] {exc}")
+
     def start_sweep(
         self,
     ):
+        if dpg.get_value("cantidad_barridos") > 1:
+            self.start_batch(SessionKind.SAMPLE)
+            return
+
         if self._run_history.active_run is not None or self.controller.sweep_running:
             self.log("[BARRIDO] Ya hay una operación en curso")
             return
@@ -1122,6 +1317,10 @@ class ControlInterface:
     def start_calibration(
         self,
     ):
+        if dpg.get_value("cantidad_barridos") > 1:
+            self.start_batch(SessionKind.CALIBRATION)
+            return
+
         if self._run_history.active_run is not None or self.controller.sweep_running:
             self.log("[CALIBRACIÓN] Ya hay una operación en curso")
             return
@@ -1503,6 +1702,16 @@ class ControlInterface:
                                     )
 
                                 with dpg.table_row():
+                                    dpg.add_text("Repeticiones")
+                                    dpg.add_input_int(
+                                        tag="cantidad_barridos",
+                                        default_value=1,
+                                        min_value=1,
+                                        min_clamped=True,
+                                        width=-1,
+                                    )
+
+                                with dpg.table_row():
                                     dpg.add_text("Estabilización (s)")
                                     dpg.add_input_float(
                                         tag="tiempo_estabilizacion",
@@ -1515,14 +1724,14 @@ class ControlInterface:
                             with dpg.group(horizontal=True):
                                 dpg.add_button(
                                     tag="barrido_btn",
-                                    label="Barrido",
+                                    label="Barrido / lote",
                                     callback=self.start_sweep,
                                     width=150,
                                 )
 
                                 dpg.add_button(
                                     tag="calibrar_btn",
-                                    label="Calibración",
+                                    label="Calibración / lote",
                                     callback=self.start_calibration,
                                     width=150,
                                 )
@@ -1538,6 +1747,12 @@ class ControlInterface:
                             dpg.add_progress_bar(
                                 default_value=0.0,
                                 tag="barrido_progress",
+                                width=-1,
+                            )
+                            dpg.add_text("Progreso total del lote")
+                            dpg.add_progress_bar(
+                                default_value=0.0,
+                                tag="lote_progress",
                                 width=-1,
                             )
 

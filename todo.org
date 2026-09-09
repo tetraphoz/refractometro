@@ -26,7 +26,7 @@ selección de datos para un análisis.
 + [X] Configurar cantidad de barridos, posiciones y tiempo de estabilización.
 + [X] Ejecutar una cola de barridos sin solicitudes superpuestas.
 + [X] Guardar cada barrido crudo inmediatamente al terminarlo.
-+ [ ] Mostrar progreso del barrido actual y progreso total del lote.
++ [X] Mostrar progreso del barrido actual y progreso total del lote.
 + [X] Permitir cancelación segura conservando los resultados parciales.
 + [ ] Permitir pausa y reanudación sin perder la sesión.
 + [ ] Añadir reintentos configurables para un barrido fallido.
@@ -149,7 +149,7 @@ selección de datos para un análisis.
 + [ ] Mantener reglas de negocio probables sin DearPyGui.
 + [ ] Reducir callbacks que mezclan persistencia, dominio y presentación.
 ** TODO Añadir pruebas de integración de flujos completos
-+ [ ] Adquisición de un lote simulado.
++ [X] Adquisición de un lote simulado.
 + [ ] Cancelación y recuperación de un lote.
 + [ ] Promedio con corridas de distinta resolución y rango.
 + [X] Calibración promedio sin muestra.
