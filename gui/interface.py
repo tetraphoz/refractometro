@@ -512,6 +512,7 @@ class ControlInterface:
             parent="historial_lista",
             default_open=True,
         ):
+            dpg.add_text(f"Lote: {session.uid[:8]}")
             dpg.add_text("Nombre de muestra")
             with dpg.group(horizontal=True):
                 dpg.add_input_text(
