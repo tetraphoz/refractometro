@@ -2629,27 +2629,28 @@ class ControlInterface:
             ):
                 dpg.add_table_column(init_width_or_weight=0.68)
                 dpg.add_table_column(init_width_or_weight=0.32)
-                with dpg.table_row(), dpg.table_cell(), dpg.group(horizontal=True):
-                    dpg.add_text("Refractómetro")
-                    dpg.add_button(
-                        label="Importar CSV",
-                        callback=lambda: dpg.show_item("import_dialog"),
-                    )
-                    info_btn = dpg.add_button(
-                        tag="info_btn",
-                        label="ℹ Ayuda",
-                        callback=lambda: dpg.show_item("modal_info"),
-                    )
-                with dpg.table_cell(), dpg.group(horizontal=True, width=-1):
-                    dpg.add_spacer(width=-1)
-                    dpg.add_text(
-                        "Sensor: Desconectado",
-                        tag="conexion_sensor_resumen",
-                    )
-                    dpg.add_text(
-                        "Motor: Desconectado",
-                        tag="conexion_motor_resumen",
-                    )
+                with dpg.table_row():
+                    with dpg.table_cell(), dpg.group(horizontal=True):
+                        dpg.add_text("Refractómetro")
+                        dpg.add_button(
+                            label="Importar CSV",
+                            callback=lambda: dpg.show_item("import_dialog"),
+                        )
+                        info_btn = dpg.add_button(
+                            tag="info_btn",
+                            label="ℹ Ayuda",
+                            callback=lambda: dpg.show_item("modal_info"),
+                        )
+                    with dpg.table_cell(), dpg.group(horizontal=True, width=-1):
+                        dpg.add_spacer(width=-1)
+                        dpg.add_text(
+                            "Sensor: Desconectado",
+                            tag="conexion_sensor_resumen",
+                        )
+                        dpg.add_text(
+                            "Motor: Desconectado",
+                            tag="conexion_motor_resumen",
+                        )
 
             with dpg.popup(
                 info_btn,
