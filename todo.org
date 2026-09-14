@@ -88,21 +88,88 @@ selección de datos para un análisis.
 + [X] Definir un estado de calidad para el lote y para el pico final.
 + [ ] Permitir comparar lotes repetidos de la misma muestra.
 
-* v3 — Interfaz orientada al laboratorio
+* v3 — Plan de acción: plots e interfaz de laboratorio
 
-** TODO Rediseñar la interfaz para el flujo de trabajo
-+ [ ] Separar las vistas de configuración, adquisición, revisión y resultados.
-+ [ ] Guiar al usuario por pasos: preparar, adquirir, revisar, promediar y analizar.
-+ [X] Reemplazar controles ambiguos por acciones explícitas sobre lotes.
-+ [ ] Mostrar por separado corridas crudas, promedios, calibraciones y corregidas.
-+ [X] Mantener la visibilidad de gráficas independiente de la selección analítica.
-+ [X] Mostrar el estado, progreso y acciones disponibles de la sesión actual.
-+ [ ] Permitir revisar las fuentes y parámetros desde cada resultado derivado.
-+ [ ] Mostrar advertencias cuando falten fuentes, calibración o calidad suficiente.
-+ [ ] Mantener disponibles guardar, exportar y eliminar sin bloquear acciones útiles.
-+ [ ] Diseñar la interfaz para que una sesión pueda repetirse sin ambigüedad.
+La interfaz se reorganiza alrededor de cuatro superficies estables: preparar,
+adquirir, revisar y analizar. El gráfico es una herramienta de exploración, no
+un formulario: no tendrá botones de zoom ni controles duplicados.
 
-** TODO Visualizar la proveniencia de resultados derivados
+** TODO P0 — Interacción del gráfico sin botones
++ [X] Usar la rueda del ratón/touchpad para hacer zoom alrededor del cursor.
++ [X] Usar arrastre para desplazar la vista.
++ [X] Usar doble clic para ajustar la vista a las curvas visibles.
++ [X] Mantener la cruz de lectura y el tooltip de la curva más cercana.
++ [X] Eliminar Zoom +, Zoom -, Ajustar vista y cualquier control equivalente.
++ [X] Centralizar la configuración de interacción en `gui/plot_view.py`.
++ [ ] Verificar que el scroll sobre el plot no desplace la ventana principal.
+
+** TODO P0 — Layout adaptable
++ [X] Sustituir la altura fija de 800 px por un panel que use el espacio disponible.
++ [X] Recalcular la altura del plot cuando cambia el tamaño de la ventana.
++ [X] Mantener controles y lotes en regiones con scroll propias.
++ [X] Reservar el panel de registro sin quitar espacio al área de datos.
++ [ ] Probar como mínimo 1280x720, 1366x768, 1920x1080 y una ventana estrecha.
++ [ ] Ajustar tipografía, columnas y tamaños mínimos a partir de esas pruebas.
+
+** DONE P0 — Conexiones visibles
++ [X] Mover la actualización de puertos y los controles de sensor/motor a la
+  pestaña `Conexiones`.
++ [X] Mostrar el estado resumido del sensor y del motor junto al botón de
+  ayuda, alineado al extremo derecho de la barra principal.
++ [X] Cambiar el color de `Conexiones` cuando ambos dispositivos están listos.
+
+** TODO P0 — Lotes comprensibles
++ [X] Eliminar los `collapsing_header` de conexión, adquisición e historial.
++ [X] Presentar cada lote como una tarjeta siempre visible con nombre, estado,
+  visibilidad y acciones principales.
++ [X] Mantener las corridas crudas dentro de su lote y los resultados derivados
+  en el historial general.
++ [X] Dejar separado el estado de visibilidad de la selección analítica.
++ [X] Conservar exclusión/reincorporación auditada y eliminación protegida por
+  dependencias.
++ [ ] Añadir un resumen visible por lote: completas, fallidas, excluidas y
+  participantes del promedio.
++ [ ] Deshabilitar o explicar cada acción según el estado real del lote.
+
+** TODO P1 — Flujo guiado
++ [ ] Convertir la columna de controles en pasos explícitos: 1 Preparar,
+  2 Adquirir, 3 Revisar, 4 Promediar, 5 Corregir/analizar.
++ [ ] Mostrar una única acción primaria por paso y esconder opciones avanzadas
+  detrás de un panel contextual, no de múltiples acordeones.
++ [ ] Mostrar una confirmación antes de crear un promedio, indicando fuentes,
+  excluidas y protocolo.
++ [ ] Mostrar errores de adquisición en la fila afectada y en el resumen del lote.
++ [ ] Mantener disponible la recuperación de lotes parciales sin perder datos.
+
+** TODO P1 — Revisión y análisis visual
++ [ ] Separar visualmente crudos, promedios, calibraciones y corregidos mediante
+  grupos, color y etiquetas consistentes.
++ [ ] Añadir modo de comparación para dos o más lotes sin saturar el gráfico.
++ [ ] Mostrar desviación/intervalo de confianza del promedio como banda opcional.
++ [ ] Permitir seleccionar el pico de interés desde la gráfica y persistirlo.
++ [ ] Mostrar advertencias para picos no repetibles, baja calidad o calibración
+  incompatible antes de producir un resultado.
+
+** TODO P1 — Proveniencia y acciones de datos
++ [X] Mostrar lote, fuentes, calibración y parámetros desde cada resultado.
++ [X] Impedir eliminar fuentes que todavía tengan resultados derivados.
++ [ ] Mostrar un grafo de dependencias compacto y navegable.
++ [ ] Reemplazar menús contextuales como único camino por acciones visibles en
+  la tarjeta/fila seleccionada, conservando el menú derecho como atajo.
++ [ ] Unificar guardar CSV, exportar PNG, importar y eliminar en una barra de
+  acciones que respete la selección actual.
+
+** TODO P2 — Validación y pruebas de usabilidad
++ [ ] Añadir pruebas de interacción para zoom con rueda, pan, fit y resize.
++ [ ] Añadir pruebas de layout que comprueben que no aparece scroll global por
+  el gráfico.
++ [ ] Probar un lote de 1, 2, 20 y 100 corridas con fallos intercalados.
++ [ ] Probar renombrado, exclusión, promedio, calibración y borrado con fuentes.
++ [ ] Hacer una sesión observada con una persona de laboratorio y registrar
+  confusiones, clics innecesarios y tiempos por tarea.
++ [ ] Convertir los hallazgos en criterios de aceptación antes de cerrar P1.
+
+* v3 — Visualizar la proveniencia de resultados derivados
 + [X] Mostrar las corridas fuente de un promedio.
 + [X] Mostrar el lote y la calibración usados por una corrección.
 + [X] Mostrar parámetros de adquisición, promedio y detección de picos.
