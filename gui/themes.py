@@ -8,9 +8,27 @@ DANGER_THEME = "theme_button_danger"
 SELECTED_HISTORY_ROW_THEME = "theme_selected_history_row"
 HISTORY_SELECTABLE_THEME = "theme_history_selectable"
 HISTORY_TABLE_THEME = "theme_history_table"
+CONNECTIONS_READY_THEME = "theme_connections_ready"
+CONNECTIONS_PENDING_THEME = "theme_connections_pending"
 
 
 def create_button_themes() -> None:
+    with dpg.theme(tag=CONNECTIONS_READY_THEME), dpg.theme_component(dpg.mvTab):
+        for color, value in (
+            (dpg.mvThemeCol_Tab, (38, 120, 68, 255)),
+            (dpg.mvThemeCol_TabHovered, (52, 150, 82, 255)),
+            (dpg.mvThemeCol_TabSelected, (45, 135, 76, 255)),
+        ):
+            dpg.add_theme_color(color, value, category=dpg.mvThemeCat_Core)
+
+    with dpg.theme(tag=CONNECTIONS_PENDING_THEME), dpg.theme_component(dpg.mvTab):
+        for color, value in (
+            (dpg.mvThemeCol_Tab, (145, 92, 35, 255)),
+            (dpg.mvThemeCol_TabHovered, (175, 116, 43, 255)),
+            (dpg.mvThemeCol_TabSelected, (160, 102, 38, 255)),
+        ):
+            dpg.add_theme_color(color, value, category=dpg.mvThemeCat_Core)
+
     with dpg.theme(tag=CONNECTED_THEME), dpg.theme_component(dpg.mvButton):
         dpg.add_theme_color(
             dpg.mvThemeCol_Button,
@@ -100,6 +118,16 @@ def create_button_themes() -> None:
             (139, 0, 0, 255),
             category=dpg.mvThemeCat_Core,
         )
+
+
+def set_connections_tab_visual(ready: bool) -> None:
+    """Color the connections tab according to the complete device state."""
+    if not dpg.does_item_exist("connections_tab"):
+        return
+    dpg.bind_item_theme(
+        "connections_tab",
+        CONNECTIONS_READY_THEME if ready else CONNECTIONS_PENDING_THEME,
+    )
 
 
 def set_connection_button_visual(

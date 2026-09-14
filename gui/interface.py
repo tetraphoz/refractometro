@@ -35,7 +35,12 @@ from app.session_processing import (
 )
 from experiments.calibration import CalibrationCurve
 from experiments.voltage_sweep import BatchProgress, BatchRunFailure, MeasurementPoint
-from gui.plot_view import update_curve
+from gui.plot_view import (
+    pan_plot,
+    plot_interaction_options,
+    update_curve,
+    zoom_plot_at_cursor,
+)
 from gui.themes import (
     DANGER_THEME,
     HISTORY_SELECTABLE_THEME,
@@ -43,6 +48,7 @@ from gui.themes import (
     SELECTED_HISTORY_ROW_THEME,
     create_button_themes,
     set_connection_button_visual,
+    set_connections_tab_visual,
 )
 from storage.image_plot import export_run_plot_png
 
@@ -124,6 +130,12 @@ class ControlInterface:
         self._selected_run_ids: set[int] = set()
         self._run_pending_exclusion: tuple[str, str] | None = None
 
+        # DearPyGui reports drag deltas relative to the beginning of the drag,
+        # not relative to the previous callback.  Keep the last value so pan
+        # advances by the actual cursor movement instead of accumulating the
+        # complete drag repeatedly.
+        self._plot_drag_previous: tuple[float, float] | None = None
+
     # Helpers
     def log(
         self,
@@ -135,25 +147,6 @@ class ControlInterface:
             "registro",
             "\n".join(self._log_lines),
         )
-
-    def zoom_plot(self, factor: float) -> None:
-        """Zoom both axes around their centre for touchpad-friendly controls."""
-        try:
-            x_min, x_max = dpg.get_axis_limits("position_axis")
-            y_min, y_max = dpg.get_axis_limits("voltage_axis")
-        except (KeyError, RuntimeError):
-            return
-        x_center = (x_min + x_max) / 2
-        y_center = (y_min + y_max) / 2
-        x_radius = (x_max - x_min) * factor / 2
-        y_radius = (y_max - y_min) * factor / 2
-        dpg.set_axis_limits("position_axis", x_center - x_radius, x_center + x_radius)
-        dpg.set_axis_limits("voltage_axis", y_center - y_radius, y_center + y_radius)
-
-    def reset_plot_view(self) -> None:
-        """Restore the default full measurement range after pan or zoom."""
-        dpg.set_axis_limits("position_axis", self.X_AXIS_MIN, self.X_AXIS_MAX)
-        dpg.set_axis_limits("voltage_axis", 0.0, 3.0)
 
     def _update_plot_hover_information(self) -> None:
         """Identify the nearest visible curve using plot-space coordinates."""
@@ -182,8 +175,8 @@ class ControlInterface:
             if not dpg.get_item_configuration(run.curve_tag).get("show", True):
                 continue
             curve = CalibrationCurve(run.measurements)
-            if (
-                not curve.measurements[0].position_mm
+            if not (
+                curve.measurements[0].position_mm
                 <= position_mm
                 <= curve.measurements[-1].position_mm
             ):
@@ -208,6 +201,112 @@ class ControlInterface:
             pos=(mouse_x + 14, mouse_y + 14),
             show=True,
         )
+
+    def _on_plot_wheel(self, _sender, wheel_delta) -> None:
+        """Handle wheel zoom before a surrounding child window can scroll."""
+        if not dpg.does_item_exist("voltage_plot"):
+            return
+        try:
+            hovered = dpg.is_item_hovered("voltage_plot")
+            delta = float(wheel_delta)
+        except (TypeError, ValueError, RuntimeError):
+            return
+        if not hovered:
+            return
+        zoom_plot_at_cursor(
+            "voltage_plot",
+            "position_axis",
+            "voltage_axis",
+            delta,
+        )
+
+    def _on_plot_drag(self, _sender, drag_data) -> None:
+        """Pan with a normal left-button drag, independently of ImPlot input."""
+        if not dpg.does_item_exist("voltage_plot"):
+            return
+        try:
+            if not dpg.is_item_hovered("voltage_plot"):
+                return
+            # DearPyGui reports [button, delta_x, delta_y] relative to the
+            # beginning of the drag, so convert it to a frame-to-frame delta.
+            _button, total_x, total_y = drag_data
+            total = (float(total_x), float(total_y))
+        except (TypeError, ValueError, RuntimeError):
+            return
+
+        previous = self._plot_drag_previous
+        self._plot_drag_previous = total
+        if previous is None:
+            delta_x, delta_y = total
+        else:
+            delta_x = total[0] - previous[0]
+            delta_y = total[1] - previous[1]
+
+        pan_plot(
+            "voltage_plot",
+            "position_axis",
+            "voltage_axis",
+            delta_x,
+            delta_y,
+        )
+
+    def _reset_plot_drag(self, _sender, _value) -> None:
+        """Forget the cumulative drag delta when the mouse button is released."""
+        self._plot_drag_previous = None
+
+    def _reset_plot_view_on_double_click(self, _sender, button) -> None:
+        """Restore the complete measurement range with a double click."""
+        if button != dpg.mvMouseButton_Left:
+            return
+        try:
+            if not dpg.is_item_hovered("voltage_plot"):
+                return
+            dpg.set_axis_limits(
+                "position_axis",
+                self.X_AXIS_MIN,
+                self.X_AXIS_MAX,
+            )
+            dpg.set_axis_limits("voltage_axis", 0.0, 3.0)
+        except (KeyError, RuntimeError):
+            return
+
+    def _update_history_layout(self) -> None:
+        """Give the batch list the remaining vertical space in its tab."""
+        if not (
+            dpg.does_item_exist("controls_panel")
+            and dpg.does_item_exist("historial_lista")
+        ):
+            return
+        _panel_width, panel_height = dpg.get_item_rect_size("controls_panel")
+        if panel_height <= 0:
+            return
+        # Keep the two history actions visible below the list while allowing
+        # the list itself to grow with the window instead of staying at 400 px.
+        history_height = max(220, int(panel_height - 115))
+        if (
+            dpg.get_item_configuration("historial_lista").get("height")
+            != history_height
+        ):
+            dpg.configure_item("historial_lista", height=history_height)
+
+    def _update_plot_layout(self) -> None:
+        """Fit the plot to the available panel instead of scrolling the window.
+
+        The old fixed 800 px plot made the complete application taller than a
+        normal laptop display.  The plot now owns the remaining space in its
+        panel; only the controls and history use their own scroll regions.
+        """
+        if not (
+            dpg.does_item_exist("plot_panel") and dpg.does_item_exist("voltage_plot")
+        ):
+            return
+        panel_width, panel_height = dpg.get_item_rect_size("plot_panel")
+        if panel_width <= 0 or panel_height <= 0:
+            return
+        # Title/help take roughly 45 px and the log is deliberately compact.
+        plot_height = max(280, int(panel_height - 220))
+        if dpg.get_item_configuration("voltage_plot").get("height") != plot_height:
+            dpg.configure_item("voltage_plot", height=plot_height)
 
     def _update_log_wrap_width(self) -> None:
         """Keep the log readable after the user resizes its table column."""
@@ -296,11 +395,32 @@ class ControlInterface:
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, enabled=enabled)
 
+    def _update_connection_summary(self) -> None:
+        """Keep the compact connection status visible next to the tabs."""
+        sensor_label = (
+            "Sensor: Conectado"
+            if self._operation_state.sensor_connected
+            else "Sensor: Desconectado"
+        )
+        motor_label = (
+            "Motor: Conectado"
+            if self._operation_state.motor_connected
+            else "Motor: Desconectado"
+        )
+        for tag, label in (
+            ("conexion_sensor_resumen", sensor_label),
+            ("conexion_motor_resumen", motor_label),
+        ):
+            if dpg.does_item_exist(tag):
+                dpg.set_value(tag, label)
+        set_connections_tab_visual(self._operation_state.operations_enabled)
+
     def _update_operation_buttons_state(self) -> None:
         """
         Enable operation buttons only when both sensor and motor are connected.
         Call whenever connection state changes.
         """
+        self._update_connection_summary()
         enabled = (
             self._operation_state.operations_enabled
             and self._run_history.active_run is None
@@ -518,14 +638,15 @@ class ControlInterface:
             return runs_tag
 
         header_tag = self._session_history_header_tag(session.uid)
-        with dpg.collapsing_header(
-            label=session.label,
-            tag=header_tag,
-            parent="historial_lista",
-            default_open=True,
-        ):
-            dpg.add_text(f"Lote: {session.uid[:8]}")
-            dpg.add_text("Nombre de muestra")
+        # A batch is a card, not a collapsed accordion.  The name, state and
+        # actions remain visible so the relationship between a session and its
+        # raw runs is clear without hunting through several headers.
+        with dpg.group(tag=header_tag, parent="historial_lista"):
+            dpg.add_text(
+                session.label,
+                tag=f"hist_session_title_{session.uid}",
+            )
+            dpg.add_text(f"Lote · {session.uid[:8]}")
             with dpg.group(horizontal=True):
                 dpg.add_input_text(
                     default_value=session.label,
@@ -536,37 +657,37 @@ class ControlInterface:
                     width=150,
                 )
                 dpg.add_button(
-                    label="Guardar",
+                    label="Guardar nombre",
                     callback=self.save_session_name,
                     user_data=session.uid,
-                    width=65,
+                    width=105,
                 )
-            dpg.add_checkbox(
-                label="Mostrar barridos crudos",
-                default_value=True,
-                callback=self.toggle_session_visibility,
-                user_data=session.uid,
-            )
-            dpg.add_text(
-                f"Estado: {session.status.value}",
-                tag=self._session_history_status_tag(session.uid),
-            )
-            dpg.add_button(
-                label=(
-                    "Crear calibración promedio"
-                    if session.kind is SessionKind.CALIBRATION
-                    else "Crear promedio del lote"
-                ),
-                callback=self.create_session_average,
-                user_data=session.uid,
-                width=-1,
-            )
-            dpg.add_button(
-                label="Analizar calidad y repetibilidad",
-                callback=self.analyze_session_quality,
-                user_data=session.uid,
-                width=-1,
-            )
+            with dpg.group(horizontal=True):
+                dpg.add_checkbox(
+                    label="Mostrar crudos",
+                    default_value=True,
+                    callback=self.toggle_session_visibility,
+                    user_data=session.uid,
+                )
+                dpg.add_text(
+                    f"Estado: {session.status.value}",
+                    tag=self._session_history_status_tag(session.uid),
+                )
+            with dpg.group(horizontal=True):
+                dpg.add_button(
+                    label=(
+                        "Crear calibración promedio"
+                        if session.kind is SessionKind.CALIBRATION
+                        else "Crear promedio del lote"
+                    ),
+                    callback=self.create_session_average,
+                    user_data=session.uid,
+                )
+                dpg.add_button(
+                    label="Analizar calidad",
+                    callback=self.analyze_session_quality,
+                    user_data=session.uid,
+                )
             with dpg.table(
                 tag=runs_tag,
                 header_row=True,
@@ -577,9 +698,34 @@ class ControlInterface:
                 policy=dpg.mvTable_SizingStretchProp,
             ):
                 self._add_history_table_columns()
+            dpg.add_separator()
         dpg.bind_item_theme(runs_tag, HISTORY_TABLE_THEME)
         with dpg.popup(header_tag, mousebutton=dpg.mvMouseButton_Right):
             dpg.add_text(f"Lote: {session.label}")
+            dpg.add_separator()
+            dpg.add_menu_item(
+                label="Mostrar corridas del lote",
+                callback=lambda _sender, _value, session_uid: self.toggle_session_visibility(
+                    _sender,
+                    True,
+                    session_uid,
+                ),
+                user_data=session.uid,
+            )
+            dpg.add_menu_item(
+                label="Ocultar corridas del lote",
+                callback=lambda _sender, _value, session_uid: self.toggle_session_visibility(
+                    _sender,
+                    False,
+                    session_uid,
+                ),
+                user_data=session.uid,
+            )
+            dpg.add_menu_item(
+                label="Exportar PNG de las corridas",
+                callback=self.export_session_plots,
+                user_data=session.uid,
+            )
             dpg.add_separator()
             dpg.add_menu_item(
                 label="Eliminar lote",
@@ -658,9 +804,9 @@ class ControlInterface:
         ):
             self._active_batch_session.label = name
         self._repository.save_session(session)
-        header_tag = self._session_history_header_tag(session_uid)
-        if dpg.does_item_exist(header_tag):
-            dpg.configure_item(header_tag, label=name)
+        title_tag = f"hist_session_title_{session_uid}"
+        if dpg.does_item_exist(title_tag):
+            dpg.set_value(title_tag, name)
         self.log(f"[LOTE] Nombre actualizado: {name}")
 
     def request_run_exclusion(
@@ -823,6 +969,17 @@ class ControlInterface:
                 continue
             self.toggle_run_visibility(None, visible, history_run.id)
 
+    def export_session_plots(self, _sender, _value, session_uid: str) -> None:
+        """Export each stored run in a batch to its own PNG file."""
+        exported = 0
+        for persisted_run in self._repository.list_runs_for_session(session_uid):
+            run = self._run_history.get_by_uid(persisted_run.uid)
+            if run is None or not run.measurements:
+                continue
+            self.on_click_export_run(None, None, run.id)
+            exported += 1
+        self.log(f"[EXPORT] {exported} corridas del lote exportadas")
+
     def _history_parent_for_run(self, run: RunRecord) -> str:
         if run.session_uid is None:
             return "historial_general"
@@ -948,7 +1105,7 @@ class ControlInterface:
         self._update_context_menu_visibility()
 
     def _update_context_menu_visibility(self) -> None:
-        """Show only bulk actions when multiple history rows are selected."""
+        """Keep row actions available and add bulk actions for multi-selection."""
         multiple_selected = len(self._selected_run_ids) > 1
         individual_prefixes = (
             "hist_menu_title",
@@ -975,10 +1132,13 @@ class ControlInterface:
                 suffix = (
                     f"_{run.id}" if context_index == 0 else f"_{run.id}_{context_index}"
                 )
+                # A context menu always belongs to a concrete row.  Keep its
+                # individual actions visible even when other rows are selected;
+                # bulk actions are an additional section, not a replacement.
                 for prefix in individual_prefixes:
                     tag = f"{prefix}{suffix}"
                     if dpg.does_item_exist(tag):
-                        dpg.configure_item(tag, show=not multiple_selected)
+                        dpg.configure_item(tag, show=True)
                 session = (
                     self._repository.get_session(run.session_uid)
                     if run.session_uid is not None
@@ -991,7 +1151,7 @@ class ControlInterface:
                 ):
                     tag = f"{prefix}{suffix}"
                     if dpg.does_item_exist(tag):
-                        dpg.configure_item(tag, show=show and not multiple_selected)
+                        dpg.configure_item(tag, show=show)
                 for prefix in bulk_prefixes:
                     tag = f"{prefix}{suffix}"
                     if dpg.does_item_exist(tag):
@@ -2337,6 +2497,25 @@ class ControlInterface:
         ):
             dpg.add_file_extension(".csv")
 
+        # Use explicit handlers in addition to ImPlot's native input.  This
+        # avoids losing wheel/drag events when the graph sits inside a child
+        # window that also has a scrollable layout.
+        with dpg.handler_registry(tag="plot_mouse_handlers"):
+            dpg.add_mouse_wheel_handler(callback=self._on_plot_wheel)
+            dpg.add_mouse_drag_handler(
+                button=dpg.mvMouseButton_Left,
+                threshold=1.0,
+                callback=self._on_plot_drag,
+            )
+            dpg.add_mouse_release_handler(
+                button=dpg.mvMouseButton_Left,
+                callback=self._reset_plot_drag,
+            )
+            dpg.add_mouse_double_click_handler(
+                button=dpg.mvMouseButton_Left,
+                callback=self._reset_plot_view_on_double_click,
+            )
+
         with dpg.window(
             label="Excluir corrida del promedio",
             modal=True,
@@ -2428,6 +2607,8 @@ class ControlInterface:
             no_scrollbar=True,
             no_collapse=True,
             autosize=True,
+            min_size=(1, 1),
+            no_saved_settings=True,
         ):
             dpg.add_text("", tag="curva_hover")
 
@@ -2437,24 +2618,38 @@ class ControlInterface:
             height=-1,
             no_collapse=True,
         ):
-            with dpg.group(horizontal=True):
-                dpg.add_text("Refractómetro")
-
-                dpg.add_button(
-                    label="Actualizar puertos",
-                    callback=self.update_ports,
-                )
-
-                dpg.add_button(
-                    label="Importar CSV",
-                    callback=lambda: dpg.show_item("import_dialog"),
-                )
-
-                info_btn = dpg.add_button(
-                    tag="info_btn",
-                    label="ℹ Ayuda",
-                    callback=lambda: dpg.show_item("modal_info"),
-                )
+            # Keep the actions and connection status in separate table cells.
+            # A flexible spacer in a plain horizontal group can make the
+            # preceding button claim the entire available width in DearPyGui.
+            with dpg.table(
+                header_row=False,
+                policy=dpg.mvTable_SizingStretchProp,
+                borders_innerV=False,
+                borders_outerV=False,
+            ):
+                dpg.add_table_column(init_width_or_weight=0.68)
+                dpg.add_table_column(init_width_or_weight=0.32)
+                with dpg.table_row(), dpg.table_cell(), dpg.group(horizontal=True):
+                    dpg.add_text("Refractómetro")
+                    dpg.add_button(
+                        label="Importar CSV",
+                        callback=lambda: dpg.show_item("import_dialog"),
+                    )
+                    info_btn = dpg.add_button(
+                        tag="info_btn",
+                        label="ℹ Ayuda",
+                        callback=lambda: dpg.show_item("modal_info"),
+                    )
+                with dpg.table_cell(), dpg.group(horizontal=True, width=-1):
+                    dpg.add_spacer(width=-1)
+                    dpg.add_text(
+                        "Sensor: Desconectado",
+                        tag="conexion_sensor_resumen",
+                    )
+                    dpg.add_text(
+                        "Motor: Desconectado",
+                        tag="conexion_motor_resumen",
+                    )
 
             with dpg.popup(
                 info_btn,
@@ -2468,7 +2663,7 @@ class ControlInterface:
                     "2. Conectar el motor Zaber eligiendo su puerto y\n"
                     "   presionando 'Conectar motor'.\n"
                     "3. Si los puertos no aparecen en las listas,\n"
-                    "   usar 'Actualizar puertos' (arriba).\n"
+                    "   usar 'Actualizar puertos' en la pestaña Conexiones.\n"
                     "4. Definir Inicio, Final, Puntos y tiempo de\n"
                     "   Estabilización para el barrido.\n"
                     "5. '▶ Barrido' mide voltaje vs posición.\n"
@@ -2503,10 +2698,32 @@ class ControlInterface:
 
                 with dpg.table_row():
                     with dpg.table_cell():
-                        with dpg.collapsing_header(
-                            label="ESP32",
-                            default_open=True,
-                        ):
+                        controls_panel = dpg.add_child_window(
+                            tag="controls_panel",
+                            width=-1,
+                            height=-1,
+                            border=False,
+                            horizontal_scrollbar=False,
+                        )
+                        dpg.push_container_stack(controls_panel)
+                        tab_bar = dpg.add_tab_bar(
+                            tag="control_tabs",
+                        )
+                        connections_tab = dpg.add_tab(
+                            label="Conexiones",
+                            tag="connections_tab",
+                            parent=tab_bar,
+                        )
+                        dpg.push_container_stack(connections_tab)
+                        with dpg.group(horizontal=True):
+                            dpg.add_text("CONEXIÓN DEL SENSOR")
+                            dpg.add_spacer(width=-1)
+                            dpg.add_button(
+                                label="Actualizar puertos",
+                                callback=self.update_ports,
+                            )
+                        dpg.add_separator()
+                        with dpg.group():
                             dpg.add_text(
                                 "● Desconectado",
                                 tag="estado_esp32",
@@ -2535,10 +2752,8 @@ class ControlInterface:
 
                             dpg.add_separator()
 
-                        with dpg.collapsing_header(
-                            label="Motor Zaber",
-                            default_open=True,
-                        ):
+                        with dpg.group():
+                            dpg.add_text("CONEXIÓN DEL MOTOR")
                             dpg.add_text(
                                 "● Desconectado",
                                 tag="estado_motor",
@@ -2575,10 +2790,14 @@ class ControlInterface:
                                 width=-1,
                             )
 
-                        with dpg.collapsing_header(
-                            label="Barrido",
-                            default_open=True,
-                        ):
+                        dpg.pop_container_stack()
+                        acquisition_tab = dpg.add_tab(
+                            label="Adquisición",
+                            parent=tab_bar,
+                        )
+                        dpg.push_container_stack(acquisition_tab)
+                        with dpg.group():
+                            dpg.add_text("ADQUISICIÓN")
                             with dpg.table(
                                 header_row=False,
                                 borders_innerH=False,
@@ -2716,10 +2935,14 @@ class ControlInterface:
                                 tag="resultado_maximo",
                             )
 
-                        with dpg.collapsing_header(
-                            label="Historial",
-                            default_open=True,
-                        ):
+                        dpg.pop_container_stack()
+                        history_tab = dpg.add_tab(
+                            label="Datos y lotes",
+                            parent=tab_bar,
+                        )
+                        dpg.push_container_stack(history_tab)
+                        with dpg.group():
+                            dpg.add_text("DATOS Y LOTES")
                             with dpg.child_window(
                                 tag="historial_lista",
                                 height=400,
@@ -2753,32 +2976,36 @@ class ControlInterface:
                                 callback=self.clear_history,
                                 width=-1,
                             )
+                        dpg.pop_container_stack()
+                        dpg.pop_container_stack()
 
                     with dpg.table_cell():
-                        with dpg.group(horizontal=True):
-                            dpg.add_text("Navegación: arrastra para desplazar.")
-                            dpg.add_button(
-                                label="Zoom +",
-                                callback=lambda: self.zoom_plot(0.75),
-                            )
-                            dpg.add_button(
-                                label="Zoom -",
-                                callback=lambda: self.zoom_plot(1.0 / 0.75),
-                            )
-                            dpg.add_button(
-                                label="Ajustar vista",
-                                callback=self.reset_plot_view,
-                            )
+                        plot_panel = dpg.add_child_window(
+                            tag="plot_panel",
+                            width=-1,
+                            height=-1,
+                            border=False,
+                            no_scroll_with_mouse=True,
+                        )
+                        dpg.push_container_stack(plot_panel)
+                        dpg.add_text(
+                            "Explorador de curvas",
+                            tag="plot_title",
+                        )
+                        dpg.add_text(
+                            "Rueda: zoom · arrastrar: desplazar · doble clic: ajustar vista",
+                            tag="plot_help",
+                        )
                         with dpg.plot(
                             label="Voltaje vs Posición",
                             tag="voltage_plot",
-                            crosshairs=True,
-                            height=800,
+                            height=500,
                             width=-1,
+                            **plot_interaction_options(),
                         ):
-                            # DearPyGui exposes this native legend through the
-                            # plot context menu (right click) when needed.
-                            dpg.add_plot_legend(tag="plot_legend", show=False)
+                            # Curve labels remain available for tooltips and
+                            # exports, but no legend widget is created.  This
+                            # keeps the plot readable with many batch runs.
                             dpg.add_plot_axis(
                                 dpg.mvXAxis,
                                 label="Posición (mm)",
@@ -2799,10 +3026,11 @@ class ControlInterface:
 
                         with dpg.child_window(
                             tag="registro_panel",
-                            height=200,
+                            height=160,
                             border=True,
                         ):
                             dpg.add_text("", tag="registro", wrap=520)
+                        dpg.pop_container_stack()
 
         set_connection_button_visual(
             "conectar_esp32_btn",
@@ -2854,6 +3082,8 @@ class ControlInterface:
 
     def run(self):
         while dpg.is_dearpygui_running():
+            self._update_history_layout()
+            self._update_plot_layout()
             self._update_plot_hover_information()
             self._update_log_wrap_width()
             dpg.render_dearpygui_frame()
