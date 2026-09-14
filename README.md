@@ -12,7 +12,7 @@ El sistema coordina:
 - almacenamiento/importación de corridas en **CSV**;
 - análisis básico de corridas, picos y correcciones por referencia.
 
-![Interfaz del refractómetro v3](./docs/interface-v3.png)
+![Interfaz del refractómetro v3](./docs/interface.png)
 
 La interfaz v3 organiza la adquisición por lotes, conserva cada barrido crudo,
 separa la selección analítica de la visibilidad de las curvas y muestra el
@@ -98,25 +98,29 @@ Conecta al ordenador:
 - el ESP32 del sensor;
 - el motor Zaber.
 
-### 2. Seleccionar puertos
+### 2. Conectar el equipo y seleccionar puertos
 
-1. Abre la aplicación.
-2. Pulsa **Actualizar puertos**.
+1. Abre la pestaña **Conexiones**.
+2. Pulsa **Actualizar puertos** dentro de esa pestaña.
 3. Selecciona el puerto correspondiente al ESP32.
 4. Selecciona el puerto correspondiente al motor Zaber.
 5. Pulsa **Conectar** para el ESP32.
 6. Pulsa **Conectar motor** para el motor Zaber.
 
-Las operaciones de movimiento, barrido y calibración se habilitan solamente cuando ambos dispositivos están conectados y no hay una operación en curso. Los botones de conexión se muestran en verde cuando el dispositivo está conectado; **Cancelar** usa rojo para indicar una acción de seguridad. La leyenda de la gráfica puede ocultarse. Los parámetros del barrido se muestran con etiquetas visibles y la selección de una corrida de referencia usa una lista visible en lugar de un menú desplegable.
+El estado resumido del sensor y del motor aparece en la esquina superior derecha, junto al botón **Ayuda**. La pestaña **Conexiones** se muestra en verde cuando ambos dispositivos están listos y en naranja cuando falta alguna conexión. Las operaciones de movimiento, barrido y calibración se habilitan solamente cuando ambos dispositivos están conectados y no hay una operación en curso. **Cancelar** usa rojo para indicar una acción de seguridad.
 
 ### 3. Configurar una corrida
 
-En la sección **Barrido** define:
+Abre la pestaña **Adquisición** y define:
 
 - posición inicial;
 - posición final;
 - cantidad de puntos;
-- tiempo de estabilización.
+- cantidad de repeticiones;
+- tiempo de estabilización;
+- reintentos por barrido.
+
+El explorador de curvas no muestra leyenda para conservar espacio cuando hay muchas corridas. Usa la rueda para hacer zoom alrededor del cursor, arrastra para desplazar la vista y haz doble clic para volver al rango inicial.
 
 ### 4. Ejecutar una operación
 
@@ -132,7 +136,7 @@ Durante una operación larga, los botones de operación se deshabilitan para evi
 
 ### 5. Trabajar con el historial
 
-Cada barrido, calibración, corrida importada o corrida corregida queda registrada en el **Historial**.
+Abre la pestaña **Datos y lotes**. Cada barrido, calibración, corrida importada o corrida corregida queda registrada en el **Historial**.
 
 Desde cada fila del historial se puede:
 
@@ -228,7 +232,10 @@ Las dependencias de Python están declaradas en `pyproject.toml` y sus versiones
 - historial persistente en SQLite con recuperación de bases creadas por versiones anteriores;
 - procedencia y parámetros de análisis para corridas derivadas;
 - exportación PNG robusta para corridas promedio y corregidas;
-- anotaciones de picos dentro del área de la gráfica, sin invadir las etiquetas de los ejes;
+- interacción del explorador de curvas mediante rueda, arrastre y doble clic;
+- leyendas de gráfica desactivadas para mantener el área de datos limpia;
+- pestañas **Conexiones**, **Adquisición** y **Datos y lotes**;
+- estado del hardware visible en la barra principal;
 - controles de la interfaz con etiquetas visibles y selección de referencias mediante lista.
 
 ### Configurar el entorno
@@ -313,10 +320,14 @@ La aplicación está organizada para separar responsabilidades entre interfaz, c
   - traducción de acciones del usuario hacia servicios de aplicación.
 
 - `gui/plot_view.py`
-  - actualización de series de la gráfica.
+  - actualización de series de la gráfica;
+  - zoom con rueda alrededor del cursor;
+  - desplazamiento proporcional al arrastre;
+  - restauración de la vista inicial mediante doble clic.
 
 - `gui/themes.py`
-  - temas semánticos para botones y estados de conexión.
+  - temas semánticos para botones y estados de conexión;
+  - color de la pestaña **Conexiones** según el estado del hardware.
 
 La GUI debe mantenerse lo más libre posible de reglas de negocio. Si una función puede probarse sin DearPyGui, probablemente pertenece a `app/`, `experiments/` o `storage/`.
 
