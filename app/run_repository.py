@@ -155,6 +155,22 @@ class RunRepository:
                 ),
             )
 
+    def save_session_status(self, session: MeasurementSession) -> None:
+        """Persist acquisition progress without overwriting concurrent review edits."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE sessions SET status = ? WHERE uid = ?",
+                (session.status, session.uid),
+            )
+
+    def save_session_review(self, session: MeasurementSession) -> None:
+        """Persist the editable fields without restoring an obsolete batch status."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE sessions SET label = ?, excluded_runs = ? WHERE uid = ?",
+                (session.label, json.dumps(session.excluded_runs), session.uid),
+            )
+
     def get_session(self, session_uid: str) -> MeasurementSession | None:
         with self._lock:
             row = self._connection.execute(
@@ -199,6 +215,27 @@ class RunRepository:
             )
             if cursor.rowcount != 1:
                 raise ValueError("No se encontró la sesión a eliminar")
+
+    def recover_interrupted_acquisitions(self) -> None:
+        """Finalize abandoned runs and their batches together on startup."""
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE runs SET status = ?, failure_reason = ? WHERE status IN (?, ?)",
+                (
+                    RunStatus.INTERRUPTED,
+                    "Adquisición interrumpida al reiniciar",
+                    RunStatus.PENDING,
+                    RunStatus.RUNNING,
+                ),
+            )
+            self._connection.execute(
+                "UPDATE sessions SET status = ? WHERE status IN (?, ?)",
+                (
+                    SessionStatus.INTERRUPTED,
+                    SessionStatus.ACQUIRING,
+                    SessionStatus.PAUSED,
+                ),
+            )
 
     def close(self) -> None:
         with self._lock:

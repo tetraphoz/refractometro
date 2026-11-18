@@ -132,6 +132,8 @@ La interfaz permite:
 
 Para un lote, la primera barra muestra el avance del barrido actual y la segunda el avance total. **Pausar** detiene la adquisición antes del siguiente punto de forma segura; **Reanudar** continúa la misma sesión. **Cancelar** conserva las corridas ya terminadas y deja registradas las demás como canceladas. **Reintentos por barrido** permite repetir automáticamente una adquisición que falle; se conserva el número de intentos y el motivo del fallo.
 
+Si el ESP32 no responde o devuelve una lectura inválida, el barrido falla en lugar de registrar un falso 0 V. En un lote se aplica el número de reintentos configurado; si ningún barrido se completa, el lote queda marcado como fallido.
+
 Durante una operación larga, los botones de operación se deshabilitan para evitar solicitudes superpuestas. El botón **Cancelar** solicita la detención de la operación, conserva las mediciones parciales y devuelve el motor a la posición inicial. Si una operación falla, la corrida se marca como fallida y los botones vuelven a su estado correcto.
 
 ### 5. Trabajar con el historial
@@ -202,7 +204,7 @@ Al importar un CSV, el sistema recupera las mediciones y los metadatos disponibl
 
 Los barridos se respaldan automáticamente en `runs/barrido_<id>.csv`. El botón **Guardar** permite exportar cualquier corrida del historial a una ubicación elegida por el usuario.
 
-Además, la aplicación mantiene un índice local SQLite en `runs/refractometro.sqlite3`. La base de datos conserva el historial de corridas y sus mediciones para restaurarlo al abrir la aplicación. Las etiquetas visuales y los picos se reconstruyen al iniciar; los picos se calculan nuevamente a partir de las mediciones guardadas. Una corrida que estaba pendiente o en curso cuando la aplicación se cerró se marca como interrumpida al volver a abrirla.
+Además, la aplicación mantiene un índice local SQLite en `runs/refractometro.sqlite3`. La base de datos conserva el historial de corridas y sus mediciones para restaurarlo al abrir la aplicación. Las etiquetas visuales y los picos se reconstruyen al iniciar; los picos se calculan nuevamente a partir de las mediciones guardadas. Al volver a abrir la aplicación, las corridas pendientes o en curso y los lotes que estaban adquiriendo o en pausa se marcan como interrumpidos. Las mediciones ya guardadas no se modifican.
 
 Cada corrida recibe un `uid` SHA-256 generado a partir de su instante de inicio. Los nombres temporales usan la forma `tipo_YYYYMMDD_HHMMSS_microsegundos_uid.csv`, evitando que dos corridas nuevas compartan el mismo nombre. Las corridas derivadas guardan los UID de origen, el tipo de análisis utilizado y sus parámetros. Los promedios y correcciones también pueden exportarse como PNG aunque todavía no tengan un CSV asociado; el archivo se crea automáticamente en `runs/`.
 

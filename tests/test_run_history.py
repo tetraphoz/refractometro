@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.models import RunStatus
+from app.models import MeasurementSession, RunStatus, SessionKind, SessionStatus
 from app.run_history import RunHistory
 from app.run_repository import RunRepository
 from experiments.voltage_sweep import MeasurementPoint
@@ -90,6 +90,32 @@ def test_run_history_marks_unfinished_runs_as_interrupted(tmp_path):
 
     assert restored.get(5) is not None
     assert restored.get(5).status is RunStatus.INTERRUPTED
+    repository.close()
+
+
+@pytest.mark.parametrize("status", [SessionStatus.ACQUIRING, SessionStatus.PAUSED])
+def test_reopening_abandoned_batch_preserves_partial_data(tmp_path, status):
+    database = tmp_path / "runs.sqlite3"
+    repository = RunRepository(database)
+    history = RunHistory(repository)
+    session = MeasurementSession("Muestra", SessionKind.SAMPLE, 2, status=status)
+    repository.save_session(session)
+    for run_id, run_status in enumerate([RunStatus.COMPLETED, RunStatus.RUNNING], 1):
+        run = history.create_run(
+            run_id=run_id, kind="barrido", label="Crudo", curve_tag=f"curve-{run_id}"
+        )
+        run.status = run_status
+        run.measurements = [MeasurementPoint(0.0, 0.42)]
+        history.save(run)
+        repository.attach_run_to_session(run, session)
+    repository.close()
+
+    repository = RunRepository(database)
+    restored = RunHistory(repository)
+    assert repository.get_session(session.uid).status is SessionStatus.INTERRUPTED
+    assert restored.get(1).status is RunStatus.COMPLETED
+    assert restored.get(2).status is RunStatus.INTERRUPTED
+    assert restored.get(2).measurements == [MeasurementPoint(0.0, 0.42)]
     repository.close()
 
 

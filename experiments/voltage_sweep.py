@@ -57,17 +57,6 @@ class VoltageSweep:
         self.motor = motor
         self.sensor = sensor
 
-    @staticmethod
-    def _wait_until_resumed(
-        resume_event: threading.Event | None,
-        cancel_event: threading.Event | None,
-    ) -> None:
-        if resume_event is None:
-            return
-        while not resume_event.wait(timeout=0.05):
-            if cancel_event is not None and cancel_event.is_set():
-                raise OperationCancelled
-
     def run(
         self,
         start_position_mm: float,
@@ -87,10 +76,16 @@ class VoltageSweep:
 
         results: list[MeasurementPoint] = []
 
-        for index in range(number_of_points):
+        def check_cancelled() -> None:
             if cancel_event is not None and cancel_event.is_set():
-                raise OperationCancelled
-            self._wait_until_resumed(resume_event, cancel_event)
+                raise OperationCancelled(results)
+
+        for index in range(number_of_points):
+            if resume_event is not None:
+                while not resume_event.wait(timeout=0.05):
+                    check_cancelled()
+            # Cancellation also wakes a paused worker. Check before moving.
+            check_cancelled()
 
             position_mm = start_position_mm + index * step_mm
 
@@ -99,10 +94,7 @@ class VoltageSweep:
             if cancel_event is None:
                 time.sleep(stabilization_time_s)
             elif cancel_event.wait(stabilization_time_s):
-                raise OperationCancelled
-
-            if cancel_event is not None and cancel_event.is_set():
-                raise OperationCancelled
+                raise OperationCancelled(results)
 
             voltage_v = self.sensor.read_voltage()
 

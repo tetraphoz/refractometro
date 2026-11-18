@@ -342,6 +342,36 @@ def test_voltage_sweep_can_be_cancelled_and_returns_to_start(tmp_path):
     assert len(partial_results) < 100
 
 
+@pytest.mark.parametrize("calibration", [False, True])
+def test_cancelling_after_first_reading_returns_that_point(tmp_path, calibration):
+    controller = ApplicationController(RecordingMotor(), ConstantSensor())
+    partial = []
+    cancelled = threading.Event()
+
+    def on_cancelled(points):
+        partial.extend(points)
+        cancelled.set()
+
+    options = {
+        "start_position_mm": 0.0,
+        "end_position_mm": 1.0,
+        "number_of_points": 3,
+        "stabilization_time_s": 0.0,
+        "on_progress": lambda _points: controller.cancel_operation(),
+        "on_cancelled": on_cancelled,
+    }
+    if calibration:
+        controller.start_calibration(**options)
+    else:
+        controller.start_voltage_sweep(
+            filename=str(tmp_path / "partial.csv"), **options
+        )
+
+    assert cancelled.wait(timeout=1.0)
+    assert [(p.position_mm, p.voltage_v) for p in partial] == [(0.0, 0.5)]
+    assert not (tmp_path / "partial.csv").exists()
+
+
 def test_cancel_operation_returns_false_when_idle():
     controller = ApplicationController(
         motor=RecordingMotor(),

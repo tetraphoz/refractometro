@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import serial
 
 
@@ -46,13 +48,15 @@ class ESP32Sensor:
 
         self._serial.write(b"R")
 
-        response = self._serial.readline().decode(errors="ignore").strip()
-
-        voltage = 0
-
+        response = self._serial.readline().strip()
+        if not response:
+            raise TimeoutError("El ESP32 no respondió con una lectura de voltaje")
         try:
             voltage = float(response)
-        except ValueError:
-            pass
-
+        except ValueError as exc:
+            raise ValueError(
+                f"Lectura de voltaje inválida del ESP32: {response!r}"
+            ) from exc
+        if not math.isfinite(voltage):
+            raise ValueError("La lectura de voltaje del ESP32 no es finita")
         return voltage

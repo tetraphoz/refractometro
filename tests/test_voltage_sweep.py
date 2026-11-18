@@ -28,6 +28,20 @@ def test_sweep_honors_cancellation_before_moving():
         )
 
 
+def test_cancelling_a_paused_sweep_does_not_start_the_next_move():
+    cancel = threading.Event()
+
+    class WakeOnCancel:
+        def wait(self, timeout):
+            cancel.set()
+            return True
+
+    # Neither device should be accessed when cancellation woke the worker.
+    sweep = VoltageSweep(object(), object())
+    with pytest.raises(OperationCancelled):
+        sweep.run(0.0, 1.0, 2, 0.0, cancel_event=cancel, resume_event=WakeOnCancel())
+
+
 def test_batch_preserves_each_sweep_and_reports_progress():
     class Motor:
         def move_absolute(self, _position_mm):

@@ -360,7 +360,9 @@ class ControlInterface:
                     )
         return theme_tag
 
-    def _set_run_buttons_enabled(self, run_id: int, enabled: bool) -> None:
+    def _set_run_buttons_enabled(
+        self, run_id: int, enabled: bool, *, allow_inspection: bool = False
+    ) -> None:
         # Configure the buttons of a history row (do not touch peak labels here).
         prefixes = (
             "hist_guardar",
@@ -377,23 +379,20 @@ class ControlInterface:
             for prefix in prefixes:
                 tag = f"{prefix}{suffix}"
                 if dpg.does_item_exist(tag):
-                    dpg.configure_item(tag, enabled=enabled)
+                    dpg.configure_item(
+                        tag,
+                        enabled=enabled
+                        or (
+                            allow_inspection
+                            and prefix in {"hist_proveniencia", "hist_eliminar"}
+                        ),
+                    )
 
     def _set_failed_run_buttons_state(self, run: RunRecord) -> None:
         """Leave a failed run removable and enable useful context actions."""
-        has_measurements = bool(run.measurements)
-        states = {
-            f"hist_guardar_{run.id}": has_measurements,
-            f"hist_corregir_{run.id}": has_measurements,
-            f"hist_peaks_{run.id}": has_measurements,
-            f"hist_exportar_{run.id}": has_measurements,
-            f"hist_proveniencia_{run.id}": True,
-            f"hist_eliminar_{run.id}": True,
-        }
-
-        for tag, enabled in states.items():
-            if dpg.does_item_exist(tag):
-                dpg.configure_item(tag, enabled=enabled)
+        self._set_run_buttons_enabled(
+            run.id, bool(run.measurements), allow_inspection=True
+        )
 
     def _update_connection_summary(self) -> None:
         """Keep the compact connection status visible next to the tabs."""
@@ -436,7 +435,7 @@ class ControlInterface:
         kind: str,
         label: str,
         *,
-        set_active: bool = True,
+        session: MeasurementSession | None = None,
     ) -> RunRecord:
         """Crea una nueva corrida EN VIVO: reserva un id, agrega su curva
         vacía al gráfico y una fila en el panel de historial. Queda como
@@ -467,12 +466,12 @@ class ControlInterface:
             tag=peaks_tag,
         )
 
-        run = self.register_run(run_id, kind, label, curve_tag)
+        run = self.register_run(run_id, kind, label, curve_tag, session=session)
         run.measurements = []
         run.laser_on_time_s = self.controller.laser_on_time_s
         self._run_history.save(run)
 
-        if set_active:
+        if session is None:
             self._run_history.set_active(run)
 
         return run
@@ -603,6 +602,8 @@ class ControlInterface:
         source_uids: list[str] | None = None,
         analysis_kind: str | None = None,
         analysis_parameters: dict[str, object] | None = None,
+        *,
+        session: MeasurementSession | None = None,
     ) -> RunRecord:
         run = self._run_history.create_run(
             run_id=run_id,
@@ -614,8 +615,10 @@ class ControlInterface:
             analysis_parameters=analysis_parameters,
         )
 
+        if session is not None:
+            # Row parent and exclusion callbacks both depend on membership.
+            self._repository.attach_run_to_session(run, session)
         self.add_history_row(run)
-
         return run
 
     @staticmethod
@@ -803,7 +806,7 @@ class ControlInterface:
             and self._active_batch_session.uid == session_uid
         ):
             self._active_batch_session.label = name
-        self._repository.save_session(session)
+        self._repository.save_session_review(session)
         title_tag = f"hist_session_title_{session_uid}"
         if dpg.does_item_exist(title_tag):
             dpg.set_value(title_tag, name)
@@ -843,7 +846,7 @@ class ControlInterface:
             return
         try:
             session.exclude_run(run_uid, reason)
-            self._repository.save_session(session)
+            self._repository.save_session_review(session)
         except ValueError as exc:
             self.log(f"[PROMEDIO ERROR] {exc}")
             return
@@ -868,7 +871,7 @@ class ControlInterface:
             return
         try:
             session.include_run(run_uid)
-            self._repository.save_session(session)
+            self._repository.save_session_review(session)
         except ValueError as exc:
             self.log(f"[PROMEDIO ERROR] {exc}")
             return
@@ -1146,7 +1149,7 @@ class ControlInterface:
                 )
                 excluded = bool(session and run.uid in session.excluded_runs)
                 for prefix, show in (
-                    ("hist_excluir", not excluded),
+                    ("hist_excluir", session is not None and not excluded),
                     ("hist_reincorporar", excluded),
                 ):
                     tag = f"{prefix}{suffix}"
@@ -1442,7 +1445,10 @@ class ControlInterface:
         if run is None:
             return
 
-        if self._run_history.active_run is run:
+        if self._run_history.active_run is run or run.status in {
+            RunStatus.PENDING,
+            RunStatus.RUNNING,
+        }:
             self.log("[HISTORIAL] No se puede eliminar una corrida en curso")
             return
 
@@ -1603,9 +1609,12 @@ class ControlInterface:
         self.log(f"[PROMEDIO] {averaged.label} calculado")
 
     def clear_history(self) -> None:
-        if self._run_history.active_run is not None:
+        if (
+            self._run_history.active_run is not None
+            or self._active_batch_session is not None
+        ):
             self.log(
-                "[HISTORIAL] No se puede limpiar mientras hay una " "corrida en curso"
+                "[HISTORIAL] No se puede limpiar mientras hay una adquisición en curso"
             )
             return
 
@@ -1980,7 +1989,7 @@ class ControlInterface:
                 run = self.create_live_run(
                     "barrido",
                     f"{session.label} - barrido {run_number}/{number_of_runs}",
-                    set_active=False,
+                    session=session,
                 )
                 run.filename = os.path.join(
                     self.RUNS_DIR,
@@ -1990,11 +1999,6 @@ class ControlInterface:
                 run.stabilization_time_s = protocol.stabilization_time_s
                 run.status = RunStatus.PENDING
                 self._run_history.save(run)
-                self._repository.attach_run_to_session(run, session)
-                dpg.move_item(
-                    run.row_tag,
-                    parent=self._session_history_runs_tag(session.uid),
-                )
                 batch_runs[run_number] = run
                 self._set_run_buttons_enabled(run.id, False)
 
@@ -2127,7 +2131,7 @@ class ControlInterface:
                 SessionStatus.PAUSED,
             }:
                 session.transition_to(status)
-                self._repository.save_session(session)
+                self._repository.save_session_status(session)
                 self._update_session_history_status(session)
             dpg.set_value("resultado_maximo", "")
             self.log(message)
@@ -2135,7 +2139,12 @@ class ControlInterface:
             self._batch_runs = {}
             self._update_operation_buttons_state()
 
-    def batch_finished(self, _results: list[list[MeasurementPoint]]) -> None:
+    def batch_finished(self, results: list[list[MeasurementPoint]]) -> None:
+        if not results:
+            self._finish_batch(
+                SessionStatus.FAILED, "[LOTE ERROR] Ningún barrido completado"
+            )
+            return
         self._finish_batch(SessionStatus.COMPLETED, "[LOTE] Finalizado")
 
     def batch_cancelled(self, _results: list[list[MeasurementPoint]]) -> None:
@@ -2273,7 +2282,7 @@ class ControlInterface:
         if resumed:
             if session is not None and session.status is not target_status:
                 session.transition_to(target_status)
-                self._repository.save_session(session)
+                self._repository.save_session_status(session)
                 self._update_session_history_status(session)
             self.log(message)
         else:

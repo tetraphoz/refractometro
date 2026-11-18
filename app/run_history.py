@@ -24,12 +24,9 @@ class RunHistory:
         self._repository = repository
 
         if repository is not None:
+            repository.recover_interrupted_acquisitions()
             for run in repository.list_runs():
                 self._add_in_memory(run)
-                if run.status in {RunStatus.PENDING, RunStatus.RUNNING}:
-                    run.status = RunStatus.INTERRUPTED
-                    run.failure_reason = "Adquisición interrumpida al reiniciar"
-                    repository.save(run)
 
     @property
     def counter(self) -> int:

@@ -119,13 +119,9 @@ class ApplicationController:
                 OperationStatus.PAUSED,
             }:
                 return False
+            assert cancel_event is not None
             self._operation_status = OperationStatus.CANCELLING
-
-        if cancel_event is None:
-            return False
-
-        cancel_event.set()
-        with self._state_lock:
+            cancel_event.set()
             if self._resume_event is not None:
                 self._resume_event.set()
 
@@ -276,8 +272,9 @@ class ApplicationController:
                 # Find all peaks (may be zero or more) and notify UI
                 peaks = self.sweep.find_peaks(measurements)
 
-            except OperationCancelled:
+            except OperationCancelled as exc:
                 cancelled = True
+                measurements = exc.measurements
             except OPERATION_ERRORS as exc:
                 error = exc
 
@@ -496,8 +493,9 @@ class ApplicationController:
 
                 self.calibration = CalibrationCurve(measurements)
 
-            except OperationCancelled:
+            except OperationCancelled as exc:
                 cancelled = True
+                measurements = exc.measurements
             except OPERATION_ERRORS as exc:
                 error = exc
 

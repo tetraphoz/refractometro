@@ -160,6 +160,10 @@ _SESSION_TRANSITIONS = {
     },
     SessionStatus.PAUSED: {
         SessionStatus.ACQUIRING,
+        # Pause takes effect between points; an in-flight final point may
+        # still complete or fail after the pause request.
+        SessionStatus.COMPLETED,
+        SessionStatus.FAILED,
         SessionStatus.CANCELLED,
         SessionStatus.INTERRUPTED,
     },
